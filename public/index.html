@@ -203,7 +203,6 @@ footer{font-size:12px;color:var(--muted)}
       <div class="grid2">
         <label class="f">Apellidos y nombre<input id="c-name" type="text" autocomplete="name"></label>
         <label class="f">DNI / NIE / Pasaporte<input id="c-dni" type="text"></label>
-        <label class="f">Nº de expediente <small>(si lo conoce)</small><input id="c-exp" type="text"></label>
         <label class="f">Lugar de realización<input id="c-place" type="text" placeholder="Municipio"></label>
       </div>
       <div style="display:grid;gap:10px"><span style="font-weight:500;font-size:14px">La prueba incluye, en este orden:</span>
@@ -370,7 +369,7 @@ $("f-start").addEventListener("submit",e=>{
   $("start-err").hidden=true;
   const parts=CODES.map((uc,i)=>{if(!ucOn(CFG,i))return null;const u=UCS[uc];const qids=sample(u.items.length,CFG.n[i]);const sps=spList(u,CFG.s[i]);
     return {uc,qids,order:qids.map(q=>sample(u.items[q].o.length,u.items[q].o.length)),ans:qids.map(()=>null),sps,texts:sps.map(()=>"")}}).filter(Boolean);
-  S={id:uid(),name,dni,exp:$("c-exp").value.trim(),place:$("c-place").value.trim(),code:encode(CFG),start:Date.now(),end:null,parts,done:false};
+  S={id:uid(),name,dni,place:$("c-place").value.trim(),code:encode(CFG),start:Date.now(),end:null,parts,done:false};
   save();showExam();startHeartbeat();
 });
 
@@ -429,7 +428,6 @@ function reportHTML(){
 <div class="tbl"><table class="kv"><tbody>
   <tr><td>Apellidos y nombre</td><td>${esc(S.name)}</td></tr>
   <tr><td>DNI / NIE / Pasaporte</td><td>${esc(S.dni)}</td></tr>
-  <tr><td>Nº de expediente</td><td>${esc(S.exp||"No indicado")}</td></tr>
   <tr><td>Lugar</td><td>${esc(S.place||"No indicado")}</td></tr>
   <tr><td>Inicio / entrega</td><td>${fmt(S.start)} / ${fmt(S.end)}</td></tr>
   <tr><td>Código de la prueba</td><td style="font-family:var(--f-mono)">${esc(S.code)}</td></tr>
@@ -455,7 +453,7 @@ function reportHTML(){
   return head+body+tail;
 }
 function reportText(){
-  let t=`INFORME DE LA PRUEBA DE EVALUACIÓN · SEA029_2\n\nApellidos y nombre: ${S.name}\nDNI/NIE/Pasaporte: ${S.dni}\nNº de expediente: ${S.exp||"No indicado"}\nLugar: ${S.place||"No indicado"}\nInicio: ${fmt(S.start)}  Entrega: ${fmt(S.end)}\nCódigo de la prueba: ${S.code}\n`;
+  let t=`INFORME DE LA PRUEBA DE EVALUACIÓN · SEA029_2\n\nApellidos y nombre: ${S.name}\nDNI/NIE/Pasaporte: ${S.dni}\nLugar: ${S.place||"No indicado"}\nInicio: ${fmt(S.start)}  Entrega: ${fmt(S.end)}\nCódigo de la prueba: ${S.code}\n`;
   S.parts.forEach(p=>{const u=UCS[p.uc],r=compute(p);
     t+=`\n==== ${p.uc} ${u.title} ====\n\n`+(r.tot?`PARTE A. TEST\nNota del test: ${nota(r.grade)} sobre 10 (${r.ok} de ${r.tot} aciertos)\n\n`:"Sin test en esta unidad.\n");
     r.rows.forEach(x=>{t+=`${x.n}. [B${String(x.b).padStart(2,"0")}] ${x.q}\n   Respuesta marcada: ${x.a||"Sin respuesta"} [${LAB[x.st]}]\n   Respuesta correcta: ${x.c}\n`});
@@ -497,7 +495,7 @@ function buildPDF(){
   para("Cualificación SEA029_2 Vigilancia y seguridad privada",{size:14,bold:true,after:1});
   para(`Unidades evaluadas: ${S.parts.map(p=>p.uc).join(", ")}`,{size:9.5,color:C.mut,after:3});
   rule();
-  [["Apellidos y nombre",S.name],["DNI / NIE / Pasaporte",S.dni],["Nº de expediente",S.exp||"No indicado"],["Lugar",S.place||"No indicado"],
+  [["Apellidos y nombre",S.name],["DNI / NIE / Pasaporte",S.dni],["Lugar",S.place||"No indicado"],
    ["Inicio / entrega",`${fmt(S.start)} / ${fmt(S.end)}`],["Código de la prueba",S.code]].forEach(([k,v])=>{
     need(5);doc.setFontSize(9.5);doc.setFont("helvetica","normal");col(C.mut);doc.text(pdfSafe(k),M,y+3.6);
     col(C.ink);doc.setFont("helvetica","bold");const ls=doc.splitTextToSize(pdfSafe(v),CW-50);doc.text(ls,M+50,y+3.6);y+=Math.max(1,ls.length)*4.4+0.6});
