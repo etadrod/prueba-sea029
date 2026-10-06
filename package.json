@@ -1,0 +1,10 @@
+{
+  "name": "prueba-sea029",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Prueba de evaluacion SEA029_2 (test + supuestos) con panel de seguimiento del evaluador",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "dependencies": { "redis": "^4.7.0" },
+  "engines": { "node": ">=20" }
+}
