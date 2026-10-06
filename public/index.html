@@ -443,7 +443,7 @@ function reportHTML(){
 </section>`}).join("");
   const tail=`
 <section style="display:grid;gap:8px;border-top:2px solid var(--accent);padding-top:14px">
-  <div class="sign"><div>Firma del candidato/a</div><div>Firma del evaluador/a</div></div>
+  <div class="sign" style="justify-items:end"><div style="width:min(260px,100%)">Firma del evaluador/a</div></div>
 </section>`;
   return head+body+tail;
 }
@@ -513,8 +513,8 @@ function buildPDF(){
       (t.trim()?t:"Sin respuesta").split(/\n/).forEach(x=>para(x||" ",{size:10,after:1}));y+=2});
   });
   need(40);y+=28;
-  doc.setDrawColor(...C.ink);doc.line(M,y,M+70,y);doc.line(W-M-70,y,W-M,y);
-  doc.setFontSize(9);col(C.mut);doc.setFont("helvetica","normal");doc.text("Firma del candidato/a",M,y+4);doc.text("Firma del evaluador/a",W-M-70,y+4);
+  doc.setDrawColor(...C.ink);doc.line(W-M-70,y,W-M,y);
+  doc.setFontSize(9);col(C.mut);doc.setFont("helvetica","normal");doc.text("Firma del evaluador/a",W-M-70,y+4);
   const n=doc.getNumberOfPages();
   for(let i=1;i<=n;i++){doc.setPage(i);doc.setFontSize(8);col(C.mut);doc.setFont("helvetica","normal");
     doc.text(pdfSafe(`SEA029_2 · ${S.name} · ${S.dni}`),M,290);doc.text(`Página ${i} de ${n}`,W-M,290,{align:"right"})}
