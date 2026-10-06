@@ -1,13 +1,14 @@
 // Servidor de la prueba de evaluación SEA029_2.
 // Sirve la prueba (public/index.html) y guarda las entregas de los candidatos.
-// Variables de entorno: CLAVE_LECTURA (clave del panel del evaluador), REDIS_URL (opcional).
+// Variables de entorno: CLAVE_LECTURA (contraseñas de evaluador separadas por comas), REDIS_URL (opcional).
 
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 
 const PUERTO = process.env.PORT || 10000;
-const CLAVE = process.env.CLAVE_LECTURA || 'CAMBIE-ESTA-CLAVE';
+const CLAVES = (process.env.CLAVE_LECTURA || '').split(',').map((x) => x.trim()).filter(Boolean);
+const claveOk = (k) => typeof k === 'string' && CLAVES.includes(k.trim());
 const CLAVE_URL = process.env.REDIS_URL || '';
 const PREFIJO = 'sea029:';
 
@@ -97,7 +98,7 @@ async function recibir(req, res) {
     try { d = JSON.parse(datos); } catch (e) { return json(res, { ok: false, error: 'json' }, 400); }
     if (!d || !d.id) return json(res, { ok: false, error: 'id' }, 400);
     if (d.action === 'del') {
-      if (d.key !== CLAVE) return json(res, { ok: false, error: 'clave' }, 403);
+      if (!claveOk(d.key)) return json(res, { ok: false, error: 'clave' }, 403);
       try { await borrar(String(d.id)); return json(res, { ok: true }); }
       catch (e) { console.error('del', e.message); return json(res, { ok: false, error: 'servidor' }, 500); }
     }
@@ -145,7 +146,7 @@ const servidor = http.createServer(async (req, res) => {
         const r = await leer(u.searchParams.get('id') || '');
         return json(res, { ok: true, status: r ? r.status : null });
       }
-      if (u.searchParams.get('key') !== CLAVE) return json(res, { ok: false, error: 'clave' }, 403);
+      if (!claveOk(u.searchParams.get('key'))) return json(res, { ok: false, error: 'clave' }, 403);
       if (a === 'list') {
         const items = (await listar()).map(resumen).sort((x, y) => y.updated - x.updated);
         return json(res, { ok: true, items });

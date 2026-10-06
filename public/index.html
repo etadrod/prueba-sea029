@@ -262,7 +262,7 @@ const B64="eyJVQzAwODBfMiI6IHsidGl0bGUiOiAiRWZlY3R1YXIgbGEgdmlnaWxhbmNpYSB5IHByb
 const SERVER_URL="/api";
 const UCS=JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(B64),c=>c.charCodeAt(0))));
 const CODES=Object.keys(UCS);
-const PH=2783594175;
+const PH=[2783594175,1703893711,3968899963];
 function h(s){let x=0x811c9dc5;for(const c of s){x^=c.charCodeAt(0);x=Math.imul(x,16777619)>>>0}return x}
 
 const $=id=>document.getElementById(id);
@@ -305,7 +305,7 @@ $("b-cand").addEventListener("click",()=>{if(S&&S.done){showReport();return}if(S
 $("b-home").addEventListener("click",()=>{$("ev-err").hidden=true;show("s-gate")});
 $("f-eval").addEventListener("submit",e=>{
   e.preventDefault();
-  if(h("SEA029|"+$("ev-pass").value.trim())===PH){EVK=$("ev-pass").value.trim();$("ev-err").hidden=true;$("ev-pass").value="";renderEval();show("s-eval");startTrack()}
+  if(PH.includes(h("SEA029|"+$("ev-pass").value.trim()))){EVK=$("ev-pass").value.trim();$("ev-err").hidden=true;$("ev-pass").value="";renderEval();show("s-eval");startTrack()}
   else{$("ev-err").hidden=false}
 });
 $("b-start-back").addEventListener("click",()=>show("s-gate"));

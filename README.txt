@@ -6,7 +6,7 @@ Contenido
 - package.json      Dependencias (redis, opcional).
 
 Variables de entorno en Render
-- CLAVE_LECTURA  Debe coincidir con la contraseña de evaluador (el panel la envía automáticamente).
+- CLAVE_LECTURA  Contraseñas de evaluador separadas por comas (el panel envía la que se teclea al entrar).
                  (se configura en Render; no se guarda en el repositorio)
 - REDIS_URL      Conexión interna del Key Value de Render (prueba-sea029-kv). Si falta,
                  las entregas se guardan solo en memoria y se pierden al reiniciar.
