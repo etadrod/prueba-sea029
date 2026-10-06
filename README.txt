@@ -7,7 +7,7 @@ Contenido
 
 Variables de entorno en Render
 - CLAVE_LECTURA  Clave que el evaluador escribe en su panel para ver y descargar las pruebas.
-                 Valor actual: sea029-74038ca1
+                 (se configura en Render; no se guarda en el repositorio)
 - REDIS_URL      Conexión interna del Key Value de Render (prueba-sea029-kv). Si falta,
                  las entregas se guardan solo en memoria y se pierden al reiniciar.
 
