@@ -81,6 +81,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .opt input{margin-top:4px}
 .top-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 button.small{padding:6px 12px;font-size:13px}
+button.danger{color:var(--bad);border-color:currentColor}
 button.clear{background:transparent;border:0;color:var(--muted);padding:2px 0;font-size:13px;font-weight:500;text-decoration:underline}
 button.clear:disabled{opacity:.4;text-decoration:none}
 .opt .l{font-family:var(--f-mono);font-size:13px;color:var(--muted);margin-top:1px}
@@ -580,7 +581,16 @@ function renderTrack(){
   $("trk-rows").innerHTML=trkItems.map((x,i)=>{const done=x.status==="entregada",live=!done&&Date.now()-x.updated<90000;
     const st=done?`<span class="pill ok">Entregada</span>`:(live?`<span class="pill na">En curso · conectado</span>`:`<span class="pill bad">En curso · sin señal</span>`);
     return `<tr><td><b>${esc(x.name)}</b><br><span class="who">${esc(x.dni)}</span></td><td>${st}</td><td class="who">${esc(x.progress||"")}</td><td class="who">${ago(x.updated)}</td>
-      <td>${done?`<div class="btns"><button type="button" data-get="${i}" data-fmt="pdf">PDF</button><button type="button" class="ghost" data-get="${i}" data-fmt="html">HTML</button></div>`:""}</td></tr>`}).join("")}
+      <td><div class="btns">${done?`<button type="button" data-get="${i}" data-fmt="pdf">PDF</button><button type="button" class="ghost" data-get="${i}" data-fmt="html">HTML</button>`:""}<button type="button" class="ghost danger" data-del="${i}">Eliminar</button></div></td></tr>`}).join("")}
+$("trk-rows").addEventListener("click",async e=>{const d=e.target.closest("button[data-del]");if(!d)return;const x=trkItems[+d.dataset.del];
+  const live=x.status!=="entregada"&&Date.now()-x.updated<90000;
+  if(!confirm(`¿Eliminar del servidor la prueba de ${x.name||"(sin nombre)"}${x.dni?" ("+x.dni+")":""}?${live?"\n\nAtención: este candidato/a sigue conectado; si continúa, volverá a aparecer.":""}\n\nEsta acción no se puede deshacer. Descargue antes el informe si lo necesita.`))return;
+  d.disabled=true;
+  try{const r=await fetch(SERVER_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"del",id:x.id,key:EVK})});const j=await r.json();
+    if(!j.ok){trkMsg("err","No se pudo eliminar la prueba de "+x.name+".");return}
+    trkMsg("ok","Prueba de "+x.name+" eliminada.");pollTrack()}
+  catch(err){trkMsg("err","No se pudo eliminar la prueba. Inténtelo de nuevo.")}
+  finally{d.disabled=false}});
 $("trk-rows").addEventListener("click",async e=>{const b=e.target.closest("button[data-get]");if(!b)return;const x=trkItems[+b.dataset.get];
   b.disabled=true;
   try{const r=await fetch(SERVER_URL+"?action=get&id="+encodeURIComponent(x.id)+"&key="+encodeURIComponent(EVK));const j=await r.json();

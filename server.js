@@ -48,6 +48,15 @@ async function guardar(reg) {
   memoria.set(reg.id, reg);
 }
 
+async function borrar(id) {
+  if (cliente && cliente.isReady) {
+    await cliente.del(PREFIJO + id);
+    await cliente.sRem(PREFIJO + 'ids', id);
+    return;
+  }
+  memoria.delete(id);
+}
+
 async function listar() {
   if (cliente && cliente.isReady) {
     const ids = await cliente.sMembers(PREFIJO + 'ids');
@@ -87,6 +96,11 @@ async function recibir(req, res) {
     let d = null;
     try { d = JSON.parse(datos); } catch (e) { return json(res, { ok: false, error: 'json' }, 400); }
     if (!d || !d.id) return json(res, { ok: false, error: 'id' }, 400);
+    if (d.action === 'del') {
+      if (d.key !== CLAVE) return json(res, { ok: false, error: 'clave' }, 403);
+      try { await borrar(String(d.id)); return json(res, { ok: true }); }
+      catch (e) { console.error('del', e.message); return json(res, { ok: false, error: 'servidor' }, 500); }
+    }
     try {
       const previo = await leer(d.id);
       // Una prueba ya entregada no vuelve a "en curso".
