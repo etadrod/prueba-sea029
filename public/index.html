@@ -79,6 +79,8 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .opt{display:grid;grid-template-columns:auto auto 1fr;gap:10px;align-items:start;padding:8px 10px;border:1px solid var(--line);border-radius:4px;cursor:pointer}
 .opt:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
 .opt input{margin-top:4px}
+.top-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+button.small{padding:6px 12px;font-size:13px}
 button.clear{background:transparent;border:0;color:var(--muted);padding:2px 0;font-size:13px;font-weight:500;text-decoration:underline}
 button.clear:disabled{opacity:.4;text-decoration:none}
 .opt .l{font-family:var(--f-mono);font-size:13px;color:var(--muted);margin-top:1px}
@@ -129,10 +131,11 @@ footer{font-size:12px;color:var(--muted)}
   <header class="top">
     <div class="top-row">
       <span class="eyebrow">Acreditación de competencias profesionales · Convocatoria [EDITABLE]</span>
+      <div class="top-tools"><button type="button" id="b-home" class="ghost small" hidden>Inicio</button>
       <div class="seg" role="group" aria-label="Tema de color">
         <button type="button" data-th="light" aria-pressed="false">Claro</button>
         <button type="button" data-th="dark" aria-pressed="false">Oscuro</button>
-      </div>
+      </div></div>
     </div>
     <h1>Prueba de Evaluación · SEA029_2 Vigilancia y seguridad privada</h1>
     <p class="sub">Cada unidad de competencia se evalúa por separado: test de respuesta única y supuesto práctico de respuesta libre.</p>
@@ -173,9 +176,8 @@ footer{font-size:12px;color:var(--muted)}
       </div>
     </div>
     <div class="card" id="track">
-      <div class="block-h"><h2>Seguimiento de candidatos</h2><span class="tag" id="trk-state">Sin conexión</span></div>
+      <div class="block-h"><h2>Seguimiento de candidatos</h2><div class="top-tools"><span class="tag" id="trk-state">Sin conexión</span><button type="button" id="b-trk-refresh" class="ghost small">Refrescar</button></div></div>
       <p class="sub" id="trk-help">Aquí aparece quién está haciendo la prueba, su avance y, al entregar, el botón para descargar su informe en PDF.</p>
-      <label class="f" style="max-width:320px">Clave de lectura del servidor<input id="trk-key" type="password" autocomplete="off"></label>
       <div class="tbl"><table class="cfgt" style="width:100%;border-collapse:collapse;font-size:14px">
         <thead><tr><th>Candidato/a</th><th>Estado</th><th>Avance</th><th>Última señal</th><th></th></tr></thead>
         <tbody id="trk-rows"><tr><td colspan="5" class="who">Todavía no hay candidatos.</td></tr></tbody>
@@ -271,7 +273,7 @@ function fmt(d){const x=new Date(d);return x.toLocaleDateString("es-ES",{day:"2-
 function sample(n,k){const a=[...Array(n).keys()];for(let i=n-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a.slice(0,k)}
 function nota(x){return x.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})}
 function words(t){const m=t.trim().match(/\S+/g);return m?m.length:0}
-function show(id){["s-gate","s-eval","s-start","s-exam","s-report"].forEach(s=>$(s).hidden=(s!==id));window.scrollTo(0,0)}
+function show(id){["s-gate","s-eval","s-start","s-exam","s-report"].forEach(s=>$(s).hidden=(s!==id));$("b-home").hidden=(id==="s-gate");window.scrollTo(0,0)}
 
 /* ---------- TEMA ---------- */
 function applyTheme(t){
@@ -298,10 +300,11 @@ let CFG=currentCfg();
 window.addEventListener("hashchange",()=>{const c=decode(location.hash);if(c){CFG=c;if(!$("s-start").hidden)renderStart()}});
 
 /* ---------- ENTRADA ---------- */
-$("b-cand").addEventListener("click",()=>{renderStart();show("s-start")});
+$("b-cand").addEventListener("click",()=>{if(S&&S.done){showReport();return}if(S){showExam();startHeartbeat();return}renderStart();show("s-start")});
+$("b-home").addEventListener("click",()=>{$("ev-err").hidden=true;show("s-gate")});
 $("f-eval").addEventListener("submit",e=>{
   e.preventDefault();
-  if(h("SEA029|"+$("ev-pass").value.trim())===PH){$("ev-err").hidden=true;$("ev-pass").value="";renderEval();show("s-eval");startTrack()}
+  if(h("SEA029|"+$("ev-pass").value.trim())===PH){EVK=$("ev-pass").value.trim();$("ev-err").hidden=true;$("ev-pass").value="";renderEval();show("s-eval");startTrack()}
   else{$("ev-err").hidden=false}
 });
 $("b-start-back").addEventListener("click",()=>show("s-gate"));
@@ -558,18 +561,17 @@ async function deliver(){if(!canNet||!S||S.sent||delivering)return;delivering=tr
 }
 
 /* ---------- SEGUIMIENTO (EVALUADOR) ---------- */
-let trkTimer=null,trkItems=[];
-try{$("trk-key").value=store.get("sea029_trk")||""}catch(e){}
-$("trk-key").addEventListener("change",()=>{store.set("sea029_trk",$("trk-key").value.trim());pollTrack()});
+let trkTimer=null,trkItems=[],EVK="";
+$("b-trk-refresh").addEventListener("click",()=>{$("trk-state").textContent="Actualizando…";pollTrack()});
 function ago(ms){const s=Math.round((Date.now()-ms)/1000);if(s<60)return`hace ${s} s`;const m=Math.round(s/60);if(m<60)return`hace ${m} min`;return fmt(ms)}
 function trkMsg(cls,t){const m=$("trk-msg");if(!t){m.hidden=true;return}m.className="msg "+cls;m.textContent=t;m.hidden=false}
 function startTrack(){
-  if(!canNet){$("trk-state").textContent="No disponible";$("trk-help").textContent=(window.claude&&window.claude.use)?"El seguimiento solo funciona en la versión publicada en su web, no dentro de Claude.":"Falta configurar la dirección del servidor (Apps Script).";$("trk-key").closest("label").hidden=true;return}
+  if(!canNet){$("trk-state").textContent="No disponible";$("trk-help").textContent=(window.claude&&window.claude.use)?"El seguimiento solo funciona en la versión publicada en su web, no dentro de Claude.":"Falta configurar la dirección del servidor.";$("b-trk-refresh").hidden=true;return}
   pollTrack();clearInterval(trkTimer);trkTimer=setInterval(()=>{if(!$("s-eval").hidden)pollTrack()},10000)}
 async function pollTrack(){
-  const key=$("trk-key").value.trim();if(!key){trkMsg("warn","Escriba la clave de lectura para ver a los candidatos.");return}
+  const key=EVK;if(!key){trkMsg("warn","Vuelva a entrar como evaluador/a para ver a los candidatos.");return}
   try{const r=await fetch(SERVER_URL+"?action=list&key="+encodeURIComponent(key));const j=await r.json();
-    if(!j.ok){trkMsg("err","Clave de lectura incorrecta.");$("trk-state").textContent="Sin acceso";return}
+    if(!j.ok){trkMsg("err","El servidor no acepta la contraseña del evaluador/a.");$("trk-state").textContent="Sin acceso";return}
     trkMsg("",null);$("trk-state").textContent="Actualizado "+new Date().toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
     trkItems=j.items.sort((a,b)=>b.updated-a.updated);renderTrack()}
   catch(e){$("trk-state").textContent="Sin conexión";trkMsg("err","No se puede contactar con el servidor. Se reintentará en unos segundos.")}}
@@ -581,7 +583,7 @@ function renderTrack(){
       <td>${done?`<div class="btns"><button type="button" data-get="${i}" data-fmt="pdf">PDF</button><button type="button" class="ghost" data-get="${i}" data-fmt="html">HTML</button></div>`:""}</td></tr>`}).join("")}
 $("trk-rows").addEventListener("click",async e=>{const b=e.target.closest("button[data-get]");if(!b)return;const x=trkItems[+b.dataset.get];
   b.disabled=true;
-  try{const r=await fetch(SERVER_URL+"?action=get&id="+encodeURIComponent(x.id)+"&key="+encodeURIComponent($("trk-key").value.trim()));const j=await r.json();
+  try{const r=await fetch(SERVER_URL+"?action=get&id="+encodeURIComponent(x.id)+"&key="+encodeURIComponent(EVK));const j=await r.json();
     if(!j.ok||!j.payload){trkMsg("err","No se pudo recuperar la prueba de "+x.name+".");return}
     const keep=S;S=j.payload;
     try{if(b.dataset.fmt==="pdf"){const doc=buildPDF();if(!doc){trkMsg("err","No se pudo generar el PDF (sin conexión con la librería).");return}directSave(doc.output("blob"),fileName("pdf"))}
