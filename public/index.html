@@ -165,7 +165,7 @@ footer{font-size:12px;color:var(--muted)}
       <div class="block-h"><h2>Configuración de la prueba</h2><span class="tag">Evaluador/a</span></div>
       <p class="sub">Las preguntas se extraen al azar del banco de cada UC. Elija qué UC incluye la prueba, cuántas preguntas salen de cada una y qué supuesto práctico se asigna. El candidato/a realiza todas las UC activas seguidas.</p>
       <div class="tbl"><table>
-        <thead><tr><th>UC</th><th>Activa</th><th>Nº preguntas</th><th>Supuesto práctico</th></tr></thead>
+        <thead><tr><th>UC</th><th>Activa</th><th>Nº preguntas <small>(0 = sin test)</small></th><th>Supuesto práctico</th></tr></thead>
         <tbody id="cfg-rows"></tbody>
       </table></div>
       <div style="display:grid;gap:8px">
@@ -292,10 +292,12 @@ function decode(t){
   const m=String(t||"").trim().replace(/^#/,"").match(/^ev-([01]{3})-(\d{1,2})-(\d{1,2})-(\d{1,2})-(\d)-(\d)-(\d)$/);
   if(!m) return null;
   const c={u:m[1].split("").map(Number),n:[+m[2],+m[3],+m[4]],s:[+m[5],+m[6],+m[7]]};
-  CODES.forEach((code,i)=>{const u=UCS[code];c.n[i]=Math.max(1,Math.min(u.items.length,c.n[i]));if(c.s[i]>u.sps.length&&c.s[i]!==9)c.s[i]=0});
-  if(!c.u.some(Boolean)) c.u=[1,1,1];
+  CODES.forEach((code,i)=>{const u=UCS[code];c.n[i]=Math.max(0,Math.min(u.items.length,c.n[i]));if(c.s[i]>u.sps.length&&c.s[i]!==9&&c.s[i]!==8)c.s[i]=0});
+  if(!hasContent(c)) {c.u=[1,1,1];c.n=CODES.map(x=>UCS[x].def);c.s=CODES.map(()=>0)}
   return c;
 }
+function ucOn(c,i){return !!c.u[i]&&(c.n[i]>0||c.s[i]!==8)}
+function hasContent(c){return CODES.some((x,i)=>ucOn(c,i))}
 function currentCfg(){return decode(location.hash)||decode(store.get(LSC))||defCfg()}
 let CFG=currentCfg();
 window.addEventListener("hashchange",()=>{const c=decode(location.hash);if(c){CFG=c;if(!$("s-start").hidden)renderStart()}});
@@ -316,8 +318,8 @@ function renderEval(){
   $("cfg-rows").innerHTML=CODES.map((code,i)=>{const u=UCS[code];return `<tr>
     <td><span class="uc-code">${code}</span><br><span class="who">${esc(u.short)} · banco de ${u.items.length}</span></td>
     <td><input type="checkbox" data-k="u" data-i="${i}" ${CFG.u[i]?"checked":""} aria-label="Activar ${code}"></td>
-    <td><input type="number" data-k="n" data-i="${i}" min="1" max="${u.items.length}" value="${CFG.n[i]}" aria-label="Número de preguntas ${code}"></td>
-    <td><select data-k="s" data-i="${i}" aria-label="Supuesto ${code}"><option value="0">Uno al azar</option><option value="9" ${CFG.s[i]===9?"selected":""}>Todos (${u.sps.length})</option>${u.sps.map(s=>`<option value="${s.n}" ${CFG.s[i]===s.n?"selected":""}>Supuesto ${s.n}</option>`).join("")}</select></td></tr>`}).join("");
+    <td><input type="number" data-k="n" data-i="${i}" min="0" max="${u.items.length}" value="${CFG.n[i]}" aria-label="Número de preguntas ${code}"></td>
+    <td><select data-k="s" data-i="${i}" aria-label="Supuesto ${code}"><option value="0">Uno al azar</option><option value="8" ${CFG.s[i]===8?"selected":""}>Sin supuesto</option><option value="9" ${CFG.s[i]===9?"selected":""}>Todos (${u.sps.length})</option>${u.sps.map(s=>`<option value="${s.n}" ${CFG.s[i]===s.n?"selected":""}>Supuesto ${s.n}</option>`).join("")}</select></td></tr>`}).join("");
   updLink();
   $("bank").innerHTML=CODES.map(code=>{const u=UCS[code];return `<details><summary>${code} · ${u.items.length} preguntas</summary><div class="bank">${
     u.items.map((it,j)=>`<div class="bank-i"><div><span class="q-n">B${String(j+1).padStart(2,"0")}</span> ${esc(it.q)}</div><ol>${it.o.map((o,x)=>`<li class="${x===it.k?"k":""}">${esc(o)}${x===it.k?" ✓":""}</li>`).join("")}</ol><div class="meta">${it.cr?"Referencia: "+esc(it.cr):""}${it.note?" · ⚠ "+esc(it.note):""}</div></div>`).join("")}</div></details>`}).join("");
@@ -326,8 +328,11 @@ function renderEval(){
 $("cfg-rows").addEventListener("change",e=>{
   const t=e.target,k=t.dataset.k,i=+t.dataset.i;if(!k)return;
   if(k==="u"){CFG.u[i]=t.checked?1:0;if(!CFG.u.some(Boolean)){CFG.u[i]=1;t.checked=true;flashCfg("err","Debe quedar al menos una UC activa.")}}
-  if(k==="n"){const max=UCS[CODES[i]].items.length;let v=Math.round(+t.value||1);v=Math.max(1,Math.min(max,v));t.value=v;CFG.n[i]=v}
+  const prev={n:CFG.n[i],s:CFG.s[i]};
+  if(k==="n"){const max=UCS[CODES[i]].items.length;let v=Math.round(+t.value||0);v=Math.max(0,Math.min(max,v));t.value=v;CFG.n[i]=v}
   if(k==="s"){CFG.s[i]=+t.value}
+  if(!hasContent(CFG)){CFG.n[i]=prev.n;CFG.s[i]=prev.s;renderEval();flashCfg("err","La prueba debe incluir al menos un test o un supuesto práctico.");return}
+  if(CFG.u[i]&&CFG.n[i]===0&&CFG.s[i]===8)flashCfg("warn",`${CODES[i]} queda sin test y sin supuesto: el candidato/a no la realizará.`);else $("cfg-msg").hidden=true;
   updLink();
 });
 function updLink(){
@@ -344,13 +349,14 @@ $("b-copylink").addEventListener("click",()=>{
 });
 
 /* ---------- DATOS DEL CANDIDATO ---------- */
-function spList(u,s){return s===9?u.sps.map(x=>x.n):[s||u.sps[Math.floor(Math.random()*u.sps.length)].n]}
-function spLabel(u,s){return s===9?`${u.sps.length} supuestos`:(s?`supuesto ${s}`:"1 supuesto")}
+function spList(u,s){if(s===8)return [];return s===9?u.sps.map(x=>x.n):[s||u.sps[Math.floor(Math.random()*u.sps.length)].n]}
+function spLabel(u,s){return s===8?"sin supuesto práctico":(s===9?`${u.sps.length} supuestos prácticos`:(s?`supuesto práctico ${s}`:"1 supuesto práctico"))}
+function partLabel(c,i){const u=UCS[CODES[i]];return [c.n[i]?`${c.n[i]} preguntas de test`:"sin test",spLabel(u,c.s[i])].join(" + ")}
 function renderStart(){
   $("c-code").value=encode(CFG);
-  const act=CODES.filter((c,i)=>CFG.u[i]);
+  const act=CODES.filter((c,i)=>ucOn(CFG,i));
   $("uc-sum").innerHTML=act.map(code=>{const u=UCS[code],i=CODES.indexOf(code);return `<div class="uc-opt" style="cursor:default;grid-template-columns:1fr"><span><span class="uc-code">${code}</span> · ${esc(u.title)}</span>
-    <span class="uc-meta" style="grid-column:1">${esc(u.short)} · ${CFG.n[i]} preguntas de test + ${spLabel(u,CFG.s[i])} práctico${CFG.s[i]===9?"s":""}</span></div>`}).join("");
+    <span class="uc-meta" style="grid-column:1">${esc(u.short)} · ${partLabel(CFG,i)}</span></div>`}).join("");
 }
 $("c-code").addEventListener("change",()=>{const c=decode($("c-code").value);if(c){CFG=c;renderStart();$("start-err").hidden=true}else{$("start-err").textContent="El código de la prueba no es válido. Compruébelo con el evaluador/a.";$("start-err").hidden=false}});
 $("f-start").addEventListener("submit",e=>{
@@ -362,7 +368,7 @@ $("f-start").addEventListener("submit",e=>{
   if(!$("c-decl").checked)err.push("marque la declaración de realización personal");
   if(err.length){$("start-err").textContent="Para comenzar, "+err.join(", ")+".";$("start-err").hidden=false;return}
   $("start-err").hidden=true;
-  const parts=CODES.map((uc,i)=>{if(!CFG.u[i])return null;const u=UCS[uc];const qids=sample(u.items.length,CFG.n[i]);const sps=spList(u,CFG.s[i]);
+  const parts=CODES.map((uc,i)=>{if(!ucOn(CFG,i))return null;const u=UCS[uc];const qids=sample(u.items.length,CFG.n[i]);const sps=spList(u,CFG.s[i]);
     return {uc,qids,order:qids.map(q=>sample(u.items[q].o.length,u.items[q].o.length)),ans:qids.map(()=>null),sps,texts:sps.map(()=>"")}}).filter(Boolean);
   S={id:uid(),name,dni,exp:$("c-exp").value.trim(),place:$("c-place").value.trim(),code:encode(CFG),start:Date.now(),end:null,parts,done:false};
   save();showExam();startHeartbeat();
@@ -378,11 +384,11 @@ function showExam(){
   $("exam-who").innerHTML=`<b>${esc(S.name)}</b> · ${esc(S.dni)} · ${S.parts.map(p=>`<span class="uc-code">${p.uc}</span>`).join(" ")}`;
   $("exam-body").innerHTML=S.parts.map((p,pi)=>{const u=UCS[p.uc];
     return `<div class="uc-head"><span class="eyebrow">Unidad ${pi+1} de ${S.parts.length}</span><h2><span class="uc-code" style="font-size:inherit">${p.uc}</span> · ${esc(u.title)}</h2></div>
-    <div class="card"><div class="block-h"><h2>Parte A · Test</h2><span class="tag">${p.qids.length} preguntas · ${p.qids.length} puntos</span></div>
+    `+(p.qids.length?`<div class="card"><div class="block-h"><h2>Parte A · Test</h2><span class="tag">${p.qids.length} preguntas · ${p.qids.length} puntos</span></div>
       <p class="sub">Una sola respuesta correcta por pregunta. Cada pregunta vale 1 punto; los errores no restan. Si no sabe la respuesta, puede dejarla en blanco: no puntúa.</p><div>`+
       p.qids.map((qi,n)=>{const it=u.items[qi];return `<fieldset class="q"><div class="q-h"><span class="q-n">${String(n+1).padStart(2,"0")}</span><legend>${esc(it.q)}</legend><span class="q-p">1 punto</span></div><div class="opts">`+
         p.order[n].map((oi,pos)=>`<label class="opt"><input type="radio" name="q${pi}_${n}" value="${oi}" ${p.ans[n]===oi?"checked":""}><span class="l">${L[pos]})</span><span>${esc(it.o[oi])}</span></label>`).join("")+`</div><div><button type="button" class="clear" data-clear="${pi}_${n}" ${p.ans[n]===null?"disabled":""}>Dejar en blanco</button></div></fieldset>`}).join("")+
-    `</div></div>`+
+    `</div></div>`:"")+
     p.sps.map((n,si)=>{const sp=spOf(p.uc,n);return `<div class="card"><div class="block-h"><h2>Parte B · Supuesto práctico ${n}</h2><span class="tag">${p.uc} · respuesta libre</span></div>
       <div class="case">${sp.text.map(t=>`<p>${esc(t)}</p>`).join("")}</div>
       <label class="f">Respuesta del candidato/a<textarea data-pi="${pi}" data-si="${si}" placeholder="Desarrolle aquí su respuesta. Explique qué haría, en qué orden y por qué.">${esc(p.texts[si])}</textarea></label>
@@ -394,7 +400,7 @@ $("exam-body").addEventListener("click",e=>{const b=e.target.closest("button[dat
   S.parts[pi].ans[n]=null;document.querySelectorAll(`input[name="q${pi}_${n}"]`).forEach(r=>{r.checked=false});b.disabled=true;save();updProg();$("confirm").hidden=true});
 $("exam-body").addEventListener("input",e=>{const t=e.target;if(t.tagName!=="TEXTAREA")return;const pi=+t.dataset.pi,si=+t.dataset.si;S.parts[pi].texts[si]=t.value;save();$(`cnt-${pi}-${si}`).textContent=`${words(t.value)} palabras`;updProg()});
 function tally(){let tot=0,a=0,sp=0,spd=0;S.parts.forEach(p=>{tot+=p.ans.length;a+=p.ans.filter(v=>v!==null).length;sp+=p.texts.length;spd+=p.texts.filter(t=>words(t)>0).length});return {tot,a,sp,spd}}
-function updProg(){hbSoon();const t=tally();$("bar").style.width=(t.a/t.tot*100)+"%";$("prog-t").textContent=`Test ${t.a}/${t.tot} · Supuestos ${t.spd}/${t.sp}`}
+function updProg(){hbSoon();const t=tally();$("bar").style.width=((t.a+t.spd)/Math.max(1,t.tot+t.sp)*100)+"%";$("prog-t").textContent=progressText()}
 $("b-finish").addEventListener("click",()=>{
   const t=tally(),parts=[];
   if(t.tot-t.a)parts.push(`Tiene ${t.tot-t.a} pregunta${t.tot-t.a>1?"s":""} del test sin contestar.`);
@@ -411,7 +417,7 @@ function compute(p){
   const u=UCS[p.uc];let ok=0;
   const rows=p.qids.map((qi,n)=>{const it=u.items[qi],a=p.ans[n],good=a!==null&&a===it.k;if(good)ok++;
     return {n:n+1,b:qi+1,q:it.q,a:a===null?null:`${L[p.order[n].indexOf(a)]}) ${it.o[a]}`,c:`${L[p.order[n].indexOf(it.k)]}) ${it.o[it.k]}`,st:a===null?"na":(good?"ok":"bad")}});
-  return {ok,tot:p.qids.length,grade:ok/p.qids.length*10,rows};
+  return {ok,tot:p.qids.length,grade:p.qids.length?ok/p.qids.length*10:null,rows};
 }
 function reportHTML(){
   const head=`
@@ -428,15 +434,15 @@ function reportHTML(){
   <tr><td>Inicio / entrega</td><td>${fmt(S.start)} / ${fmt(S.end)}</td></tr>
   <tr><td>Código de la prueba</td><td style="font-family:var(--f-mono)">${esc(S.code)}</td></tr>
 </tbody></table></div>
-<div class="score">${S.parts.map(p=>{const r=compute(p);return `<div class="tile"><span class="k">${p.uc} · test</span><span class="v">${nota(r.grade)}</span><span class="who">${r.ok} de ${r.tot} aciertos · sobre 10</span></div>`}).join("")}</div>
+<div class="score">${S.parts.filter(p=>p.qids.length).map(p=>{const r=compute(p);return `<div class="tile"><span class="k">${p.uc} · test</span><span class="v">${nota(r.grade)}</span><span class="who">${r.ok} de ${r.tot} aciertos · sobre 10</span></div>`}).join("")}</div>
 <p class="who" style="margin:0">Los supuestos prácticos están sin evaluar: los valora el evaluador/a.</p>`;
   const body=S.parts.map(p=>{const u=UCS[p.uc],r=compute(p);return `
 <section style="display:grid;gap:10px;border-top:2px solid var(--accent);padding-top:14px">
   <h2><span class="uc-code" style="font-size:inherit">${p.uc}</span> · ${esc(u.title)}</h2>
-  <h3>Parte A · Test · nota ${nota(r.grade)} (${r.ok} de ${r.tot})</h3>
+  ${r.tot?`<h3>Parte A · Test · nota ${nota(r.grade)} (${r.ok} de ${r.tot})</h3>
   <div class="tbl"><table><thead><tr><th style="width:36px">Nº</th><th>Pregunta</th><th>Respuesta marcada</th><th>Respuesta correcta</th><th style="width:110px">Resultado</th></tr></thead><tbody>
   ${r.rows.map(x=>`<tr><td style="font-variant-numeric:tabular-nums">${x.n}<br><span class="who">B${String(x.b).padStart(2,"0")}</span></td><td>${esc(x.q)}</td><td>${x.a?esc(x.a):"<em>Sin respuesta</em>"}</td><td>${esc(x.c)}</td><td><span class="pill ${x.st}">${LAB[x.st]}</span></td></tr>`).join("")}
-  </tbody></table></div>
+  </tbody></table></div>`:`<p class="who" style="margin:0">Sin test en esta unidad.</p>`}
   ${p.sps.map((n,si)=>{const sp=spOf(p.uc,n),t=p.texts[si];return `<h3>Parte B · Supuesto práctico ${n} <span class="pill na">Sin evaluar</span></h3>
   <div class="case">${sp.text.map(x=>`<p>${esc(x)}</p>`).join("")}</div>
   <p class="who" style="margin:0">Respuesta del candidato/a (${words(t)} palabras):</p>
@@ -451,7 +457,7 @@ function reportHTML(){
 function reportText(){
   let t=`INFORME DE LA PRUEBA DE EVALUACIÓN · SEA029_2\n\nApellidos y nombre: ${S.name}\nDNI/NIE/Pasaporte: ${S.dni}\nNº de expediente: ${S.exp||"No indicado"}\nLugar: ${S.place||"No indicado"}\nInicio: ${fmt(S.start)}  Entrega: ${fmt(S.end)}\nCódigo de la prueba: ${S.code}\n`;
   S.parts.forEach(p=>{const u=UCS[p.uc],r=compute(p);
-    t+=`\n==== ${p.uc} ${u.title} ====\n\nPARTE A. TEST\nNota del test: ${nota(r.grade)} sobre 10 (${r.ok} de ${r.tot} aciertos)\n\n`;
+    t+=`\n==== ${p.uc} ${u.title} ====\n\n`+(r.tot?`PARTE A. TEST\nNota del test: ${nota(r.grade)} sobre 10 (${r.ok} de ${r.tot} aciertos)\n\n`:"Sin test en esta unidad.\n");
     r.rows.forEach(x=>{t+=`${x.n}. [B${String(x.b).padStart(2,"0")}] ${x.q}\n   Respuesta marcada: ${x.a||"Sin respuesta"} [${LAB[x.st]}]\n   Respuesta correcta: ${x.c}\n`});
     p.sps.forEach((n,si)=>{const sp=spOf(p.uc,n);t+=`\nPARTE B. SUPUESTO PRÁCTICO ${n} (sin evaluar)\n${sp.text.join("\n")}\n\nRespuesta del candidato/a:\n${p.texts[si].trim()||"Sin respuesta"}\n`});
   });
@@ -497,12 +503,12 @@ function buildPDF(){
     col(C.ink);doc.setFont("helvetica","bold");const ls=doc.splitTextToSize(pdfSafe(v),CW-50);doc.text(ls,M+50,y+3.6);y+=Math.max(1,ls.length)*4.4+0.6});
   y+=2;rule();
   para("Notas del test (sobre 10)",{size:11,bold:true,after:1.5});
-  S.parts.forEach(p=>{const r=compute(p);para(`${p.uc}: ${nota(r.grade)}  (${r.ok} de ${r.tot} aciertos)`,{size:10.5,indent:4,after:1})});
+  S.parts.forEach(p=>{const r=compute(p);para(r.tot?`${p.uc}: ${nota(r.grade)}  (${r.ok} de ${r.tot} aciertos)`:`${p.uc}: sin test`,{size:10.5,indent:4,after:1})});
   para("Los supuestos prácticos están sin evaluar: los valora el evaluador/a. Cada UC queda DEMOSTRADA con nota igual o superior a 5.",{size:9.5,color:C.mut,after:2});
   S.parts.forEach(p=>{const u=UCS[p.uc],r=compute(p);
     doc.addPage();y=M;
     para(p.uc,{size:15,bold:true,color:C.acc,after:1});para(u.title,{size:11,bold:true,after:2});rule(C.acc);
-    h2(`Parte A · Test · nota ${nota(r.grade)} (${r.ok} de ${r.tot})`);
+    if(r.tot)h2(`Parte A · Test · nota ${nota(r.grade)} (${r.ok} de ${r.tot})`);else para("Sin test en esta unidad.",{size:9.5,color:C.mut,after:2});
     r.rows.forEach(x=>{need(18);para(`${x.n}. ${x.q}`,{bold:true,size:10,after:1});
       para(`Respuesta marcada: ${x.a||"Sin respuesta"}`,{indent:5,size:9.5,after:0.6});
       para(`Respuesta correcta: ${x.c}`,{indent:5,size:9.5,after:0.6});
@@ -537,7 +543,7 @@ $("b-new-yes").addEventListener("click",()=>{
 /* ---------- ENVÍO AL EVALUADOR ---------- */
 const canNet=!!SERVER_URL&&SERVER_URL.indexOf("__")!==0&&!(window.claude&&window.claude.use);
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,10)}
-function progressText(){if(!S)return"";const t=tally();return `Test ${t.a}/${t.tot} · Supuestos ${t.spd}/${t.sp}`}
+function progressText(){if(!S)return"";const t=tally();return [t.tot?`Test ${t.a}/${t.tot}`:"",t.sp?`Supuestos ${t.spd}/${t.sp}`:""].filter(Boolean).join(" · ")}
 function post(body){if(!canNet)return Promise.reject(new Error("sin servidor"));
   return fetch(SERVER_URL,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(body)})}
 let hbTimer=null,lastHb="";
