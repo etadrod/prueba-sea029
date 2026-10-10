@@ -115,7 +115,26 @@ summary{cursor:pointer;font-weight:600}
 .rep table{width:100%;border-collapse:collapse;font-size:14px}
 .tbl{overflow-x:auto}
 .rep th,.rep td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
-.rep th{background:var(--accent-soft);font-weight:600;font-size:13px}
+.rep th{background:#163454;color:#fff;font-weight:600;font-size:12.5px;letter-spacing:.02em;border-color:#163454}
+.rep tbody tr:nth-child(even) td{background:color-mix(in srgb,var(--accent-soft) 40%,transparent)}
+.rep .kv td:first-child{background:var(--accent-soft)}
+.r-band{background:#163454;color:#fff;border-radius:4px;padding:18px 20px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;align-items:flex-end}
+.r-band h2{color:#fff;margin:3px 0;font-size:22px}
+.r-eb{font-size:11px;letter-spacing:.12em;text-transform:uppercase;opacity:.8}
+.r-sub{font-size:14px;opacity:.92}
+.r-code{font-family:var(--f-mono);font-size:12px;text-align:right;opacity:.92}
+.r-sec{font-size:12.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--accent);border-bottom:2px solid var(--accent);padding-bottom:4px;margin:4px 0 -6px}
+.r-sum td:first-child{width:46%}
+.r-num{font-variant-numeric:tabular-nums}
+.r-note{font-size:13px;color:var(--muted);margin:0}
+.r-ucsec{display:grid;gap:10px;padding-top:6px}
+.r-uc{border-left:4px solid var(--accent);background:var(--accent-soft);padding:10px 14px;border-radius:0 4px 4px 0;display:grid;gap:2px}
+.r-uc h3{margin:0;font-size:16px}
+.r-h{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;align-items:baseline;margin:8px 0 0;font-size:15px;color:var(--accent);border-bottom:1px solid var(--line);padding-bottom:4px}
+.r-h span:not(.pill){font-size:13px;color:var(--muted);font-weight:500}
+.r-lab{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:-4px}
+.r-val{text-align:justify;margin:0;line-height:1.6;hyphens:auto}
+.rep .case p{text-align:justify}
 .kv td:first-child{width:38%;color:var(--muted)}
 .score{display:flex;flex-wrap:wrap;gap:12px}
 .tile{border:1px solid var(--line);border-radius:6px;padding:12px 16px;min-width:140px;display:grid;gap:2px}
@@ -434,44 +453,51 @@ function compute(p){
 }
 function hasVal(){return !!S.val}
 function valOf(p){if(!S.val)return null;if(!p.sps.length)return ". No se realiza supuesto práctico.";return S.val[p.uc]||""}
-function valNote(){return hasVal()?"Los supuestos prácticos incluyen una valoración automática orientativa por palabras clave, contrastada con las respuestas de referencia; la decisión final corresponde al evaluador/a.":"Los supuestos prácticos están sin evaluar: los valora el evaluador/a."}
+function spInfo(p){const all=UCS[p.uc].sps.map(s=>s.n),done=p.sps.slice().sort((a,b)=>a-b),no=all.filter(n=>!done.includes(n));
+  const f=a=>a.length?a.map(n=>"Supuesto "+n).join(", "):"Ninguno";
+  return {done:done.length?f(done):"No se realiza supuesto práctico",no:f(no)}}
+function valNote(){return hasVal()?"Cada UC queda DEMOSTRADA con nota igual o superior a 5.":"Los supuestos prácticos los valora el evaluador/a. Cada UC queda DEMOSTRADA con nota igual o superior a 5."}
 function reportHTML(){
   const head=`
-<header style="display:grid;gap:4px">
-  <span class="eyebrow">Acreditación de competencias profesionales · Informe de la prueba</span>
-  <h2>Cualificación SEA029_2 Vigilancia y seguridad privada</h2>
-  <p class="sub">Unidades evaluadas: ${S.parts.map(p=>p.uc).join(", ")}</p>
-</header>
+<div class="r-band"><div><div class="r-eb">Acreditación de competencias profesionales</div><h2>Informe de la prueba de evaluación</h2><div class="r-sub">Cualificación SEA029_2 · Vigilancia y seguridad privada</div></div>
+  <div class="r-code">Código de la prueba<br><b>${esc(S.code)}</b></div></div>
+<h3 class="r-sec">Datos del candidato/a</h3>
 <div class="tbl"><table class="kv"><tbody>
-  <tr><td>Apellidos y nombre</td><td>${esc(S.name)}</td></tr>
+  <tr><td>Apellidos y nombre</td><td><b>${esc(S.name)}</b></td></tr>
   <tr><td>DNI / NIE / Pasaporte</td><td>${esc(S.dni)}</td></tr>
   <tr><td>Lugar</td><td>${esc(S.place||"No indicado")}</td></tr>
   <tr><td>Inicio / entrega</td><td>${fmt(S.start)} / ${fmt(S.end)}</td></tr>
-  <tr><td>Código de la prueba</td><td style="font-family:var(--f-mono)">${esc(S.code)}</td></tr>
+  <tr><td>Unidades evaluadas</td><td>${S.parts.map(p=>p.uc).join(", ")}</td></tr>
 </tbody></table></div>
-<div class="score">${S.parts.filter(p=>p.qids.length).map(p=>{const r=compute(p);return `<div class="tile"><span class="k">${p.uc} · test</span><span class="v">${nota(r.grade)}</span><span class="who">${r.ok} de ${r.tot} aciertos · sobre 10</span></div>`}).join("")}</div>
-<p class="who" style="margin:0">${valNote()}</p>`;
+<h3 class="r-sec">Notas del test (sobre 10)</h3>
+<div class="tbl"><table class="r-sum"><thead><tr><th>Unidad de competencia</th><th style="width:22%">Nota del test</th><th style="width:22%">Aciertos</th></tr></thead><tbody>
+${S.parts.map(p=>{const r=compute(p);return `<tr><td><b>${p.uc}</b> · ${esc(UCS[p.uc].short)}</td><td class="r-num">${r.tot?nota(r.grade):"Sin test"}</td><td class="r-num">${r.tot?r.ok+" de "+r.tot:"-"}</td></tr>`}).join("")}
+</tbody></table></div>
+<h3 class="r-sec">Supuestos prácticos</h3>
+<div class="tbl"><table class="r-sum"><thead><tr><th>Unidad de competencia</th><th>Realizados</th><th>No realizados</th></tr></thead><tbody>
+${S.parts.map(p=>{const s=spInfo(p);return `<tr><td><b>${p.uc}</b> · ${esc(UCS[p.uc].short)}</td><td>${s.done}</td><td>${s.no}</td></tr>`}).join("")}
+</tbody></table></div>
+<p class="r-note">${valNote()}</p>`;
   const body=S.parts.map(p=>{const u=UCS[p.uc],r=compute(p),v=valOf(p);return `
-<section style="display:grid;gap:10px;border-top:2px solid var(--accent);padding-top:14px">
-  <h2><span class="uc-code" style="font-size:inherit">${p.uc}</span> · ${esc(u.title)}</h2>
-  ${r.tot?`<h3>Parte A · Test · nota ${nota(r.grade)} (${r.ok} de ${r.tot})</h3>
-  <div class="tbl"><table><thead><tr><th style="width:36px">Nº</th><th>Pregunta</th><th>Respuesta marcada</th><th>Respuesta correcta</th><th style="width:110px">Resultado</th></tr></thead><tbody>
-  ${r.rows.map(x=>`<tr><td style="font-variant-numeric:tabular-nums">${x.n}<br><span class="who">B${String(x.b).padStart(2,"0")}</span></td><td>${esc(x.q)}</td><td>${x.a?esc(x.a):"<em>Sin respuesta</em>"}</td><td>${esc(x.c)}</td><td><span class="pill ${x.st}">${LAB[x.st]}</span></td></tr>`).join("")}
-  </tbody></table></div>`:`<p class="who" style="margin:0">Sin test en esta unidad.</p>`}
-  ${p.sps.map((n,si)=>{const sp=spOf(p.uc,n),t=p.texts[si];return `<h3>Parte B · Supuesto práctico ${n}${hasVal()?"":` <span class="pill na">Sin evaluar</span>`}</h3>
-  <div class="case">${sp.text.map(x=>`<p>${esc(x)}</p>`).join("")}</div>
-  <p class="who" style="margin:0">Respuesta del candidato/a (${words(t)} palabras):</p>
+<section class="r-ucsec">
+  <div class="r-uc"><span class="uc-code">${p.uc}</span><h3>${esc(u.title)}</h3></div>
+  ${r.tot?`<h4 class="r-h">Parte A · Test <span>Nota ${nota(r.grade)} · ${r.ok} de ${r.tot} aciertos</span></h4>
+  <div class="tbl"><table><thead><tr><th style="width:40px">Nº</th><th>Pregunta</th><th>Respuesta marcada</th><th>Respuesta correcta</th><th style="width:105px">Resultado</th></tr></thead><tbody>
+  ${r.rows.map(x=>`<tr><td class="r-num">${x.n}</td><td>${esc(x.q)}</td><td>${x.a?esc(x.a):"<em>Sin respuesta</em>"}</td><td>${esc(x.c)}</td><td><span class="pill ${x.st}">${LAB[x.st]}</span></td></tr>`).join("")}
+  </tbody></table></div>`:`<p class="r-note">Sin test en esta unidad.</p>`}
+  ${p.sps.map((n,si)=>{const sp=spOf(p.uc,n),t=p.texts[si];return `<h4 class="r-h">Parte B · Supuesto práctico ${n}${hasVal()?"":` <span class="pill na">Sin evaluar</span>`}</h4>
+  <div class="r-lab">Enunciado</div><div class="case">${sp.text.map(x=>`<p>${esc(x)}</p>`).join("")}</div>
+  <div class="r-lab">Respuesta del candidato/a (${words(t)} palabras)</div>
   <div class="ans">${t.trim()?esc(t):"<em>Sin respuesta</em>"}</div>`}).join("")}
-  ${v?`<h3>Valoración del supuesto práctico · ${p.uc}</h3><div class="ans">${esc(v)}</div>`:""}
+  ${v?`<h4 class="r-h">Valoración del supuesto práctico</h4><p class="r-val">${esc(v)}</p>`:""}
 </section>`}).join("");
   const tail=`
-<section style="display:grid;gap:8px;border-top:2px solid var(--accent);padding-top:14px">
-  <div class="sign" style="justify-items:end"><div style="width:min(260px,100%)">Firma del evaluador/a</div></div>
-</section>`;
+<section class="r-ucsec"><div class="sign" style="justify-items:end"><div style="width:min(260px,100%)">Firma del evaluador/a</div></div></section>`;
   return head+body+tail;
 }
 function reportText(){
   let t=`INFORME DE LA PRUEBA DE EVALUACIÓN · SEA029_2\n\nApellidos y nombre: ${S.name}\nDNI/NIE/Pasaporte: ${S.dni}\nLugar: ${S.place||"No indicado"}\nInicio: ${fmt(S.start)}  Entrega: ${fmt(S.end)}\nCódigo de la prueba: ${S.code}\n`;
+  t+="\nSUPUESTOS PRÁCTICOS\n";S.parts.forEach(p=>{const x=spInfo(p);t+=`${p.uc}: realizados: ${x.done}. No realizados: ${x.no}.\n`});
   S.parts.forEach(p=>{const u=UCS[p.uc],r=compute(p);
     t+=`\n==== ${p.uc} ${u.title} ====\n\n`+(r.tot?`PARTE A. TEST\nNota del test: ${nota(r.grade)} sobre 10 (${r.ok} de ${r.tot} aciertos)\n\n`:"Sin test en esta unidad.\n");
     r.rows.forEach(x=>{t+=`${x.n}. [B${String(x.b).padStart(2,"0")}] ${x.q}\n   Respuesta marcada: ${x.a||"Sin respuesta"} [${LAB[x.st]}]\n   Respuesta correcta: ${x.c}\n`});
@@ -501,48 +527,77 @@ const NOTE_FRAMED=" Si no aparece la descarga, abra la prueba directamente en el
 function pdfSafe(t){return String(t).replace(/€/g," EUR").replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[–—]/g,"-").replace(/…/g,"...").replace(/≥/g,">=").replace(/[^\n\x20-\x7E\xA0-\xFF]/g,"?")}
 function buildPDF(){
   const J=window.jspdf&&window.jspdf.jsPDF;if(!J)return null;
-  const doc=new J({unit:"mm",format:"a4"});const W=210,M=18,CW=W-2*M,BOT=280;let y=M;
-  const C={ink:[29,36,40],mut:[91,102,112],acc:[31,78,95],ok:[31,107,63],bad:[155,44,44],na:[138,90,0],line:[205,212,210]};
-  const col=c=>doc.setTextColor(...c);
-  function need(h){if(y+h>BOT){doc.addPage();y=M}}
-  function para(t,o={}){const sz=o.size||10,lh=sz*0.45;doc.setFont("helvetica",o.bold?"bold":"normal");doc.setFontSize(sz);col(o.color||C.ink);
-    const x=M+(o.indent||0);const lines=doc.splitTextToSize(pdfSafe(t),CW-(o.indent||0));
-    lines.forEach(l=>{need(lh);doc.text(l,x,y+lh*0.8);y+=lh});y+=(o.after!==undefined?o.after:1.5)}
-  function rule(c){need(4);doc.setDrawColor(...(c||C.line));doc.line(M,y,W-M,y);y+=4}
-  function h2(t){y+=2;need(14);para(t,{size:12.5,bold:true,color:C.acc,after:2})}
-  para("ACREDITACIÓN DE COMPETENCIAS PROFESIONALES · INFORME DE LA PRUEBA",{size:8.5,color:C.mut,after:1});
-  para("Cualificación SEA029_2 Vigilancia y seguridad privada",{size:14,bold:true,after:1});
-  para(`Unidades evaluadas: ${S.parts.map(p=>p.uc).join(", ")}`,{size:9.5,color:C.mut,after:3});
-  rule();
-  [["Apellidos y nombre",S.name],["DNI / NIE / Pasaporte",S.dni],["Lugar",S.place||"No indicado"],
-   ["Inicio / entrega",`${fmt(S.start)} / ${fmt(S.end)}`],["Código de la prueba",S.code]].forEach(([k,v])=>{
-    need(5);doc.setFontSize(9.5);doc.setFont("helvetica","normal");col(C.mut);doc.text(pdfSafe(k),M,y+3.6);
-    col(C.ink);doc.setFont("helvetica","bold");const ls=doc.splitTextToSize(pdfSafe(v),CW-50);doc.text(ls,M+50,y+3.6);y+=Math.max(1,ls.length)*4.4+0.6});
-  y+=2;rule();
-  para("Notas del test (sobre 10)",{size:11,bold:true,after:1.5});
-  S.parts.forEach(p=>{const r=compute(p);para(r.tot?`${p.uc}: ${nota(r.grade)}  (${r.ok} de ${r.tot} aciertos)`:`${p.uc}: sin test`,{size:10.5,indent:4,after:1})});
-  para(valNote()+" Cada UC queda DEMOSTRADA con nota igual o superior a 5.",{size:9.5,color:C.mut,after:2});
+  const doc=new J({unit:"mm",format:"a4"});const W=210,M=18,CW=W-2*M,TOP=24,BOT=276;let y=TOP;
+  const C={ink:[33,37,41],mut:[96,106,116],navy:[22,52,84],soft:[233,239,246],line:[198,205,212],zebra:[247,249,251],ok:[30,110,60],bad:[160,40,40],na:[150,100,0],white:[255,255,255],grey:[160,168,176]};
+  const col=c=>doc.setTextColor(...c);const font=(b,sz)=>{doc.setFont("helvetica",b?"bold":"normal");doc.setFontSize(sz)};
+  function need(h){if(y+h>BOT){doc.addPage();y=TOP;return true}return false}
+  function justLine(l,x,yy,w){const ws=l.split(" ").filter(Boolean);if(ws.length<2){doc.text(l,x,yy);return}
+    const tw=ws.reduce((a,s)=>a+doc.getTextWidth(s),0),gap=(w-tw)/(ws.length-1);
+    if(gap>doc.getTextWidth(" ")*5){doc.text(l,x,yy);return}
+    let cx=x;ws.forEach(s=>{doc.text(s,cx,yy);cx+=doc.getTextWidth(s)+gap})}
+  function para(t,o={}){const sz=o.size||10,lh=sz*0.46,ind=o.indent||0,x=M+ind,w=CW-ind;font(o.bold,sz);col(o.color||C.ink);
+    const ls=doc.splitTextToSize(pdfSafe(t),w);
+    ls.forEach((l,i)=>{need(lh);if(o.bar){doc.setFillColor(...o.bar);doc.rect(M,y,0.9,lh,"F")}
+      if(o.justify&&i<ls.length-1)justLine(l,x,y+lh*0.8,w);else doc.text(l,x,y+lh*0.8);y+=lh});
+    y+=(o.after!==undefined?o.after:1.5)}
+  function sec(t){y+=3;need(14);font(true,9.5);col(C.navy);doc.text(pdfSafe(t.toUpperCase()),M,y+3.5);y+=5;doc.setDrawColor(...C.navy);doc.setLineWidth(0.5);doc.line(M,y,W-M,y);doc.setLineWidth(0.2);y+=3.5}
+  function sub(t,r){y+=2;need(12);font(true,11);col(C.navy);doc.text(pdfSafe(t),M,y+4);if(r){font(false,9);col(C.mut);doc.text(pdfSafe(r),W-M,y+4,{align:"right"})}
+    y+=6;doc.setDrawColor(...C.line);doc.line(M,y,W-M,y);y+=3}
+  function lab(t){need(8);font(true,8.5);col(C.mut);doc.text(pdfSafe(t.toUpperCase()),M,y+3);y+=5}
+  // tabla genérica: cols [{t,w}], filas de celdas {v,b,c}
+  function table(cols,rows,o={}){const sz=o.size||9,lh=sz*0.45,pad=1.8;
+    const header=()=>{const h=lh+2*pad+0.6;need(h+8);doc.setFillColor(...C.navy);doc.rect(M,y,CW,h,"F");font(true,sz-0.5);col(C.white);
+      let x=M;cols.forEach(c=>{doc.text(pdfSafe(c.t),x+pad,y+pad+lh*0.85);x+=c.w});y+=h};
+    header();
+    rows.forEach((r,ri)=>{const cl=r.map((c,i)=>{font(c.b,sz);return doc.splitTextToSize(pdfSafe(c.v),cols[i].w-2*pad)});
+      const h=Math.max(...cl.map(l=>l.length))*lh+2*pad;
+      if(y+h>BOT){doc.addPage();y=TOP;header()}
+      if(ri%2){doc.setFillColor(...C.zebra);doc.rect(M,y,CW,h,"F")}
+      if(o.labelCol){doc.setFillColor(...C.soft);doc.rect(M,y,cols[0].w,h,"F")}
+      doc.setDrawColor(...C.line);let x=M;
+      r.forEach((c,i)=>{doc.rect(x,y,cols[i].w,h);font(c.b,sz);col(c.c||C.ink);doc.text(cl[i],x+pad,y+pad+lh*0.85);x+=cols[i].w});
+      y+=h});
+    y+=2}
+  // cabecera de la primera página
+  doc.setFillColor(...C.navy);doc.rect(0,0,W,36,"F");col(C.white);
+  font(false,8);doc.text(pdfSafe("ACREDITACIÓN DE COMPETENCIAS PROFESIONALES"),M,12);
+  font(true,17);doc.text(pdfSafe("Informe de la prueba de evaluación"),M,21);
+  font(false,10.5);doc.text(pdfSafe("Cualificación SEA029_2 · Vigilancia y seguridad privada"),M,28);
+  font(false,7.5);doc.text(pdfSafe("Código de la prueba"),W-M,21,{align:"right"});font(true,9);doc.text(pdfSafe(S.code),W-M,26,{align:"right"});
+  y=44;
+  sec("Datos del candidato/a");
+  table([{t:"Dato",w:55},{t:"Valor",w:CW-55}],[["Apellidos y nombre",S.name,1],["DNI / NIE / Pasaporte",S.dni],["Lugar",S.place||"No indicado"],
+    ["Inicio / entrega",`${fmt(S.start)} / ${fmt(S.end)}`],["Unidades evaluadas",S.parts.map(p=>p.uc).join(", ")]].map(([k,v,b])=>[{v:k,c:C.mut},{v,b:!!b}]),{labelCol:true,size:9.5});
+  sec("Notas del test (sobre 10)");
+  table([{t:"Unidad de competencia",w:CW-70},{t:"Nota del test",w:35},{t:"Aciertos",w:35}],
+    S.parts.map(p=>{const r=compute(p);return [{v:`${p.uc} · ${UCS[p.uc].short}`,b:true},{v:r.tot?nota(r.grade):"Sin test",b:!!r.tot},{v:r.tot?`${r.ok} de ${r.tot}`:"-"}]}),{size:9.5});
+  sec("Supuestos prácticos");
+  table([{t:"Unidad de competencia",w:CW-100},{t:"Realizados",w:50},{t:"No realizados",w:50}],
+    S.parts.map(p=>{const s=spInfo(p);return [{v:`${p.uc} · ${UCS[p.uc].short}`,b:true},{v:s.done},{v:s.no}]}),{size:9.5});
+  para(valNote(),{size:9,color:C.mut,after:2});
   S.parts.forEach(p=>{const u=UCS[p.uc],r=compute(p);
-    doc.addPage();y=M;
-    para(p.uc,{size:15,bold:true,color:C.acc,after:1});para(u.title,{size:11,bold:true,after:2});rule(C.acc);
-    if(r.tot)h2(`Parte A · Test · nota ${nota(r.grade)} (${r.ok} de ${r.tot})`);else para("Sin test en esta unidad.",{size:9.5,color:C.mut,after:2});
-    r.rows.forEach(x=>{need(18);para(`${x.n}. ${x.q}`,{bold:true,size:10,after:1});
-      para(`Respuesta marcada: ${x.a||"Sin respuesta"}`,{indent:5,size:9.5,after:0.6});
-      para(`Respuesta correcta: ${x.c}`,{indent:5,size:9.5,after:0.6});
-      para(`Resultado: ${LAB[x.st]}`,{indent:5,size:9.5,bold:true,color:C[x.st],after:3})});
+    doc.addPage();y=TOP;
+    const tl=(font(true,11),doc.splitTextToSize(pdfSafe(u.title),CW-10)),hh=10+tl.length*5;
+    doc.setFillColor(...C.soft);doc.rect(M,y,CW,hh,"F");doc.setFillColor(...C.navy);doc.rect(M,y,1.6,hh,"F");
+    font(true,13);col(C.navy);doc.text(p.uc,M+6,y+7);font(true,11);col(C.ink);doc.text(tl,M+6,y+13);y+=hh+4;
+    if(r.tot){sub("Parte A · Test",`Nota ${nota(r.grade)} · ${r.ok} de ${r.tot} aciertos`);
+      table([{t:"Nº",w:10},{t:"Pregunta",w:60},{t:"Respuesta marcada",w:40},{t:"Respuesta correcta",w:40},{t:"Resultado",w:24}],
+        r.rows.map(x=>[{v:String(x.n)},{v:x.q},{v:x.a||"Sin respuesta"},{v:x.c},{v:LAB[x.st],b:true,c:C[x.st]}]),{size:8.5})}
+    else para("Sin test en esta unidad.",{size:9.5,color:C.mut,after:2});
     p.sps.forEach((n,si)=>{const sp=spOf(p.uc,n),t=p.texts[si];
-      h2(`Parte B · Supuesto práctico ${n}${hasVal()?"":" (sin evaluar)"}`);
-      para("Enunciado",{bold:true,size:9.5,color:C.mut,after:1});sp.text.forEach(x=>para(x,{size:9.5,after:2}));
-      para(`Respuesta del candidato/a (${words(t)} palabras)`,{bold:true,size:9.5,color:C.mut,after:1});
-      (t.trim()?t:"Sin respuesta").split(/\n/).forEach(x=>para(x||" ",{size:10,after:1}));y+=2});
-    const v=valOf(p);if(v){h2(`Valoración del supuesto práctico · ${p.uc}`);para(v,{size:10,after:2})}
+      sub(`Parte B · Supuesto práctico ${n}`,hasVal()?"":"Sin evaluar");
+      lab("Enunciado");sp.text.forEach(x=>para(x,{size:9.5,indent:4,bar:C.navy,justify:true,after:1.5}));y+=1.5;
+      lab(`Respuesta del candidato/a (${words(t)} palabras)`);
+      (t.trim()?t:"Sin respuesta").split(/\n/).forEach(x=>para(x||" ",{size:10,indent:4,bar:C.grey,after:1}));y+=2});
+    const v=valOf(p);if(v){sub("Valoración del supuesto práctico");para(v,{size:10,justify:true,after:2})}
   });
-  need(40);y+=28;
-  doc.setDrawColor(...C.ink);doc.line(W-M-70,y,W-M,y);
-  doc.setFontSize(9);col(C.mut);doc.setFont("helvetica","normal");doc.text("Firma del evaluador/a",W-M-70,y+4);
+  need(40);y+=26;
+  doc.setDrawColor(...C.ink);doc.line(W-M-70,y,W-M,y);font(false,9);col(C.mut);doc.text(pdfSafe("Firma del evaluador/a"),W-M-70,y+4.5);
   const n=doc.getNumberOfPages();
-  for(let i=1;i<=n;i++){doc.setPage(i);doc.setFontSize(8);col(C.mut);doc.setFont("helvetica","normal");
-    doc.text(pdfSafe(`SEA029_2 · ${S.name} · ${S.dni}`),M,290);doc.text(`Página ${i} de ${n}`,W-M,290,{align:"right"})}
+  for(let i=1;i<=n;i++){doc.setPage(i);doc.setDrawColor(...C.line);doc.setLineWidth(0.2);
+    if(i>1){font(false,7.5);col(C.mut);doc.text(pdfSafe("Informe de la prueba de evaluación · SEA029_2"),M,12);doc.text(pdfSafe(S.name),W-M,12,{align:"right"});doc.line(M,14.5,W-M,14.5)}
+    doc.line(M,283,W-M,283);font(false,7.5);col(C.mut);
+    doc.text(pdfSafe(`${S.name} · ${S.dni}`),M,288);doc.text(`Página ${i} de ${n}`,W-M,288,{align:"right"})}
   return doc;
 }
 $("b-copy").addEventListener("click",()=>{
@@ -634,7 +689,7 @@ function valSp(sp,ans){
   return {txt:x};
 }
 function autoVal(pl){const out={};
-  pl.parts.filter(p=>p.sps.length).forEach(p=>{out[p.uc]="Valoración automática por palabras clave (orientativa; la revisa el evaluador/a). "+p.sps.map((n,si)=>valSp(spOf(p.uc,n),p.texts[si]).txt).join(" ")});
+  pl.parts.filter(p=>p.sps.length).forEach(p=>{out[p.uc]=""+p.sps.map((n,si)=>valSp(spOf(p.uc,n),p.texts[si]).txt).join(" ")});
   return out}
 $("trk-rows").addEventListener("click",async e=>{const b=e.target.closest("button[data-get]");if(!b)return;const x=trkItems[+b.dataset.get];
   b.disabled=true;
