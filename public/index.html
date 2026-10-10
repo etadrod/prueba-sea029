@@ -80,6 +80,10 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .opt:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
 .opt input{margin-top:4px}
 .top-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.seg button:disabled{opacity:.35;cursor:default}
+
+.top-row>*{min-width:0}.top .eyebrow,.top h1{overflow-wrap:anywhere}
+.fs button{font-weight:600;min-width:40px}
 button.small{padding:6px 12px;font-size:13px}
 button.danger{color:var(--bad);border-color:currentColor}
 button.clear{background:transparent;border:0;color:var(--muted);padding:2px 0;font-size:13px;font-weight:500;text-decoration:underline}
@@ -136,6 +140,10 @@ footer{font-size:12px;color:var(--muted)}
       <div class="seg" role="group" aria-label="Tema de color">
         <button type="button" data-th="light" aria-pressed="false">Claro</button>
         <button type="button" data-th="dark" aria-pressed="false">Oscuro</button>
+      </div>
+      <div class="seg fs" role="group" aria-label="Tamaño de letra">
+        <button type="button" data-fs="-1" aria-label="Reducir tamaño de letra">A−</button>
+        <button type="button" data-fs="1" aria-label="Aumentar tamaño de letra">A+</button>
       </div></div>
     </div>
     <h1>Prueba de Evaluación · SEA029_2 Vigilancia y seguridad privada</h1>
@@ -268,7 +276,7 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const L=["a","b","c","d"];
 const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
-const LS="sea029_eval_v3", LSC="sea029_cfg_v2", LST="sea029_theme";
+const LS="sea029_eval_v3", LSC="sea029_cfg_v2", LST="sea029_theme", LSF="sea029_fs";
 function fmt(d){const x=new Date(d);return x.toLocaleDateString("es-ES",{day:"2-digit",month:"2-digit",year:"numeric"})+" "+x.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"})}
 function sample(n,k){const a=[...Array(n).keys()];for(let i=n-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a.slice(0,k)}
 function nota(x){return x.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})}
@@ -276,12 +284,18 @@ function words(t){const m=t.trim().match(/\S+/g);return m?m.length:0}
 function show(id){["s-gate","s-eval","s-start","s-exam","s-report"].forEach(s=>$(s).hidden=(s!==id));$("b-home").hidden=(id==="s-gate");window.scrollTo(0,0)}
 
 /* ---------- TEMA ---------- */
+const FS=[0.85,1,1.15,1.3,1.5];
+function fsMax(){return innerWidth<640?FS.length-2:FS.length-1}
+function applyFs(i){i=Math.max(0,Math.min(fsMax(),isNaN(i)?1:i));document.querySelector(".wrap").style.zoom=FS[i];
+  document.querySelector('.fs [data-fs="-1"]').disabled=i===0;document.querySelector('.fs [data-fs="1"]').disabled=i===fsMax();return i}
+let fsIdx=applyFs(+(store.get(LSF)??1));
+document.querySelectorAll(".fs button").forEach(b=>b.addEventListener("click",()=>{fsIdx=applyFs(fsIdx+(+b.dataset.fs));store.set(LSF,String(fsIdx))}));
 function applyTheme(t){
   if(t==="light"||t==="dark") document.documentElement.setAttribute("data-theme",t);
   const cur=document.documentElement.getAttribute("data-theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");
-  document.querySelectorAll(".seg button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.th===cur)));
+  document.querySelectorAll(".seg button[data-th]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.th===cur)));
 }
-document.querySelectorAll(".seg button").forEach(b=>b.addEventListener("click",()=>{store.set(LST,b.dataset.th);applyTheme(b.dataset.th)}));
+document.querySelectorAll(".seg button[data-th]").forEach(b=>b.addEventListener("click",()=>{store.set(LST,b.dataset.th);applyTheme(b.dataset.th)}));
 applyTheme(store.get(LST));
 
 /* ---------- CONFIGURACIÓN ---------- */
