@@ -432,6 +432,10 @@ function compute(p){
     return {n:n+1,b:qi+1,q:it.q,a:a===null?null:`${L[p.order[n].indexOf(a)]}) ${it.o[a]}`,c:`${L[p.order[n].indexOf(it.k)]}) ${it.o[it.k]}`,st:a===null?"na":(good?"ok":"bad")}});
   return {ok,tot:p.qids.length,grade:p.qids.length?ok/p.qids.length*10:null,rows};
 }
+const NOVAL="Valoración automática no disponible: la realiza el evaluador/a.";
+function hasVal(){return !!S.val&&Object.values(S.val).some(t=>t!==NOVAL)}
+function valOf(p){if(!S.val)return null;if(!p.sps.length)return ". No se realiza supuesto práctico.";return S.val[p.uc]||NOVAL}
+function valNote(){return hasVal()?"Los supuestos prácticos incluyen una valoración orientativa contrastada con las respuestas de referencia; la decisión final corresponde al evaluador/a.":"Los supuestos prácticos están sin evaluar: los valora el evaluador/a."}
 function reportHTML(){
   const head=`
 <header style="display:grid;gap:4px">
@@ -447,18 +451,19 @@ function reportHTML(){
   <tr><td>Código de la prueba</td><td style="font-family:var(--f-mono)">${esc(S.code)}</td></tr>
 </tbody></table></div>
 <div class="score">${S.parts.filter(p=>p.qids.length).map(p=>{const r=compute(p);return `<div class="tile"><span class="k">${p.uc} · test</span><span class="v">${nota(r.grade)}</span><span class="who">${r.ok} de ${r.tot} aciertos · sobre 10</span></div>`}).join("")}</div>
-<p class="who" style="margin:0">Los supuestos prácticos están sin evaluar: los valora el evaluador/a.</p>`;
-  const body=S.parts.map(p=>{const u=UCS[p.uc],r=compute(p);return `
+<p class="who" style="margin:0">${valNote()}</p>`;
+  const body=S.parts.map(p=>{const u=UCS[p.uc],r=compute(p),v=valOf(p);return `
 <section style="display:grid;gap:10px;border-top:2px solid var(--accent);padding-top:14px">
   <h2><span class="uc-code" style="font-size:inherit">${p.uc}</span> · ${esc(u.title)}</h2>
   ${r.tot?`<h3>Parte A · Test · nota ${nota(r.grade)} (${r.ok} de ${r.tot})</h3>
   <div class="tbl"><table><thead><tr><th style="width:36px">Nº</th><th>Pregunta</th><th>Respuesta marcada</th><th>Respuesta correcta</th><th style="width:110px">Resultado</th></tr></thead><tbody>
   ${r.rows.map(x=>`<tr><td style="font-variant-numeric:tabular-nums">${x.n}<br><span class="who">B${String(x.b).padStart(2,"0")}</span></td><td>${esc(x.q)}</td><td>${x.a?esc(x.a):"<em>Sin respuesta</em>"}</td><td>${esc(x.c)}</td><td><span class="pill ${x.st}">${LAB[x.st]}</span></td></tr>`).join("")}
   </tbody></table></div>`:`<p class="who" style="margin:0">Sin test en esta unidad.</p>`}
-  ${p.sps.map((n,si)=>{const sp=spOf(p.uc,n),t=p.texts[si];return `<h3>Parte B · Supuesto práctico ${n} <span class="pill na">Sin evaluar</span></h3>
+  ${p.sps.map((n,si)=>{const sp=spOf(p.uc,n),t=p.texts[si];return `<h3>Parte B · Supuesto práctico ${n}${hasVal()?"":` <span class="pill na">Sin evaluar</span>`}</h3>
   <div class="case">${sp.text.map(x=>`<p>${esc(x)}</p>`).join("")}</div>
   <p class="who" style="margin:0">Respuesta del candidato/a (${words(t)} palabras):</p>
   <div class="ans">${t.trim()?esc(t):"<em>Sin respuesta</em>"}</div>`}).join("")}
+  ${v?`<h3>Valoración del supuesto práctico · ${p.uc}</h3><div class="ans">${esc(v)}</div>`:""}
 </section>`}).join("");
   const tail=`
 <section style="display:grid;gap:8px;border-top:2px solid var(--accent);padding-top:14px">
@@ -471,7 +476,8 @@ function reportText(){
   S.parts.forEach(p=>{const u=UCS[p.uc],r=compute(p);
     t+=`\n==== ${p.uc} ${u.title} ====\n\n`+(r.tot?`PARTE A. TEST\nNota del test: ${nota(r.grade)} sobre 10 (${r.ok} de ${r.tot} aciertos)\n\n`:"Sin test en esta unidad.\n");
     r.rows.forEach(x=>{t+=`${x.n}. [B${String(x.b).padStart(2,"0")}] ${x.q}\n   Respuesta marcada: ${x.a||"Sin respuesta"} [${LAB[x.st]}]\n   Respuesta correcta: ${x.c}\n`});
-    p.sps.forEach((n,si)=>{const sp=spOf(p.uc,n);t+=`\nPARTE B. SUPUESTO PRÁCTICO ${n} (sin evaluar)\n${sp.text.join("\n")}\n\nRespuesta del candidato/a:\n${p.texts[si].trim()||"Sin respuesta"}\n`});
+    p.sps.forEach((n,si)=>{const sp=spOf(p.uc,n);t+=`\nPARTE B. SUPUESTO PRÁCTICO ${n}${hasVal()?"":" (sin evaluar)"}\n${sp.text.join("\n")}\n\nRespuesta del candidato/a:\n${p.texts[si].trim()||"Sin respuesta"}\n`});
+    const v=valOf(p);if(v)t+=`\nVALORACIÓN DEL SUPUESTO PRÁCTICO ${p.uc}\n${v}\n`;
   });
   return t;
 }
@@ -516,7 +522,7 @@ function buildPDF(){
   y+=2;rule();
   para("Notas del test (sobre 10)",{size:11,bold:true,after:1.5});
   S.parts.forEach(p=>{const r=compute(p);para(r.tot?`${p.uc}: ${nota(r.grade)}  (${r.ok} de ${r.tot} aciertos)`:`${p.uc}: sin test`,{size:10.5,indent:4,after:1})});
-  para("Los supuestos prácticos están sin evaluar: los valora el evaluador/a. Cada UC queda DEMOSTRADA con nota igual o superior a 5.",{size:9.5,color:C.mut,after:2});
+  para(valNote()+" Cada UC queda DEMOSTRADA con nota igual o superior a 5.",{size:9.5,color:C.mut,after:2});
   S.parts.forEach(p=>{const u=UCS[p.uc],r=compute(p);
     doc.addPage();y=M;
     para(p.uc,{size:15,bold:true,color:C.acc,after:1});para(u.title,{size:11,bold:true,after:2});rule(C.acc);
@@ -526,10 +532,11 @@ function buildPDF(){
       para(`Respuesta correcta: ${x.c}`,{indent:5,size:9.5,after:0.6});
       para(`Resultado: ${LAB[x.st]}`,{indent:5,size:9.5,bold:true,color:C[x.st],after:3})});
     p.sps.forEach((n,si)=>{const sp=spOf(p.uc,n),t=p.texts[si];
-      h2(`Parte B · Supuesto práctico ${n} (sin evaluar)`);
+      h2(`Parte B · Supuesto práctico ${n}${hasVal()?"":" (sin evaluar)"}`);
       para("Enunciado",{bold:true,size:9.5,color:C.mut,after:1});sp.text.forEach(x=>para(x,{size:9.5,after:2}));
       para(`Respuesta del candidato/a (${words(t)} palabras)`,{bold:true,size:9.5,color:C.mut,after:1});
       (t.trim()?t:"Sin respuesta").split(/\n/).forEach(x=>para(x||" ",{size:10,after:1}));y+=2});
+    const v=valOf(p);if(v){h2(`Valoración del supuesto práctico · ${p.uc}`);para(v,{size:10,after:2})}
   });
   need(40);y+=28;
   doc.setDrawColor(...C.ink);doc.line(W-M-70,y,W-M,y);
@@ -609,15 +616,28 @@ $("trk-rows").addEventListener("click",async e=>{const d=e.target.closest("butto
     trkMsg("ok","Prueba de "+x.name+" eliminada.");pollTrack()}
   catch(err){trkMsg("err","No se pudo eliminar la prueba. Inténtelo de nuevo.")}
   finally{d.disabled=false}});
+const valCache={};
+async function fetchVal(id,pl){
+  const items=pl.parts.filter(p=>p.sps.length).map(p=>({uc:p.uc,title:UCS[p.uc].title,sps:p.sps.map((n,si)=>{const sp=spOf(p.uc,n);return {n,text:sp.text,ref:sp.ref,answer:p.texts[si]}})}));
+  const out={};items.forEach(it=>{out[it.uc]=NOVAL});
+  if(!items.length)return out;
+  if(valCache[id])return Object.assign(out,valCache[id]);
+  try{const r=await fetch(SERVER_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action:"valorar",id,key:EVK,items})});const j=await r.json();
+    if(j.ok&&j.val){Object.assign(out,j.val);if(items.every(it=>j.val[it.uc]))valCache[id]=j.val}}
+  catch(e){}
+  return out;
+}
 $("trk-rows").addEventListener("click",async e=>{const b=e.target.closest("button[data-get]");if(!b)return;const x=trkItems[+b.dataset.get];
   b.disabled=true;
   try{const r=await fetch(SERVER_URL+"?action=get&id="+encodeURIComponent(x.id)+"&key="+encodeURIComponent(EVK));const j=await r.json();
     if(!j.ok||!j.payload){trkMsg("err","No se pudo recuperar la prueba de "+x.name+".");return}
-    const keep=S;S=j.payload;
+    trkMsg("warn","Valorando los supuestos prácticos de "+x.name+"…");
+    const val=await fetchVal(x.id,j.payload);
+    const keep=S;S=Object.assign({},j.payload,{val});
     try{if(b.dataset.fmt==="pdf"){const doc=buildPDF();if(!doc){trkMsg("err","No se pudo generar el PDF (sin conexión con la librería).");return}directSave(doc.output("blob"),fileName("pdf"))}
         else directSave(new Blob([standaloneDoc()],{type:"text/html"}),fileName("html"))}
     finally{S=keep}
-    trkMsg("ok","Informe de "+x.name+" descargado.")}
+    trkMsg("ok","Informe de "+x.name+" descargado."+(Object.values(val).some(t=>t===NOVAL)?" La valoración automática de los supuestos no está disponible.":""))}
   catch(err){trkMsg("err","No se pudo descargar el informe. Inténtelo de nuevo.")}
   finally{b.disabled=false}});
 

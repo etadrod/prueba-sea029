@@ -7,6 +7,7 @@ Contenido
 
 Variables de entorno en Render
 - CLAVE_LECTURA  Contraseñas de evaluador separadas por comas (el panel envía la que se teclea al entrar).
+- ANTHROPIC_API_KEY  Opcional. Activa la valoración automática de los supuestos prácticos (unas 100 palabras por UC) en el informe que descarga el evaluador. Sin ella el informe indica "Valoración automática no disponible".
                  (se configura en Render; no se guarda en el repositorio)
 - REDIS_URL      Conexión interna del Key Value de Render (prueba-sea029-kv). Si falta,
                  las entregas se guardan solo en memoria y se pierden al reiniciar.
