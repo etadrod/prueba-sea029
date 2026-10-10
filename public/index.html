@@ -177,10 +177,10 @@ footer{font-size:12px;color:var(--muted)}
         <tbody id="cfg-rows"></tbody>
       </table></div>
       <div style="display:grid;gap:8px">
-        <h3>Enlace para el candidato/a</h3>
+        <h3>Código de la prueba para el candidato/a</h3>
         <div class="linkbox" id="cfg-link"></div>
-        <p class="who" style="margin:0">Código de la prueba: <b id="cfg-code" style="font-family:var(--f-mono)"></b>. Si el enlace pierde la configuración, el candidato/a puede escribir este código en la pantalla de datos.</p>
-        <div class="btns"><button id="b-copylink" type="button">Copiar enlace</button><button id="b-defaults" type="button" class="ghost">Restablecer 10 / 5 / 5</button><button id="b-exit" type="button" class="ghost">Salir</button></div>
+        <p class="who" style="margin:0">Facilite al candidato/a la dirección <b id="cfg-base"></b> y este código, que escribirá en el campo «Código de la prueba» de su pantalla de datos.</p>
+        <div class="btns"><button id="b-copylink" type="button">Copiar código</button><button id="b-defaults" type="button" class="ghost">Restablecer 10 / 5 / 5</button><button id="b-exit" type="button" class="ghost">Salir</button></div>
         <div id="cfg-msg" class="msg" hidden></div>
       </div>
     </div>
@@ -302,7 +302,8 @@ applyTheme(store.get(LST));
 function defCfg(){return {u:CODES.map(()=>1),n:CODES.map(c=>UCS[c].def),s:CODES.map(()=>0)}}
 function encode(c){return "ev-"+c.u.join("")+"-"+c.n.join("-")+"-"+c.s.join("-")}
 function decode(t){
-  const m=String(t||"").trim().replace(/^#/,"").match(/^ev-([01]{3})-(\d{1,2})-(\d{1,2})-(\d{1,2})-(\d)-(\d)-(\d)$/);
+  let raw=String(t||"");try{raw=decodeURIComponent(raw)}catch(e){}
+  const m=raw.replace(/\s+/g,"").match(/ev-([01]{3})-(\d{1,2})-(\d{1,2})-(\d{1,2})-(\d)-(\d)-(\d)(?!\d)/);
   if(!m) return null;
   const c={u:m[1].split("").map(Number),n:[+m[2],+m[3],+m[4]],s:[+m[5],+m[6],+m[7]]};
   CODES.forEach((code,i)=>{const u=UCS[code];c.n[i]=Math.max(0,Math.min(u.items.length,c.n[i]));if(c.s[i]>u.sps.length&&c.s[i]!==9&&c.s[i]!==8)c.s[i]=0});
@@ -350,15 +351,15 @@ $("cfg-rows").addEventListener("change",e=>{
 });
 function updLink(){
   const code=encode(CFG);store.set(LSC,code);
-  $("cfg-code").textContent=code;$("cfg-link").textContent=baseUrl()+"#"+code;
+  $("cfg-link").textContent=code;$("cfg-base").textContent=baseUrl().replace(/[?#].*$/,"");
 }
 function flashCfg(cls,t){const m=$("cfg-msg");m.className="msg "+cls;m.textContent=t;m.hidden=false}
 $("b-defaults").addEventListener("click",()=>{CFG=defCfg();renderEval();flashCfg("ok","Configuración restablecida: 10, 5 y 5 preguntas, supuesto al azar.")});
 $("b-exit").addEventListener("click",()=>{$("cfg-msg").hidden=true;show("s-gate")});
 $("b-copylink").addEventListener("click",()=>{
   const t=$("cfg-link").textContent;
-  const fb=()=>{const r=document.createRange();r.selectNodeContents($("cfg-link"));const s=getSelection();s.removeAllRanges();s.addRange(r);flashCfg("warn","Enlace seleccionado: cópielo con Ctrl+C.")};
-  try{navigator.clipboard.writeText(t).then(()=>flashCfg("ok","Enlace copiado. Envíeselo al candidato/a."),fb)}catch(e){fb()}
+  const fb=()=>{const r=document.createRange();r.selectNodeContents($("cfg-link"));const s=getSelection();s.removeAllRanges();s.addRange(r);flashCfg("warn","Código seleccionado: cópielo con Ctrl+C.")};
+  try{navigator.clipboard.writeText(t).then(()=>flashCfg("ok","Código copiado. Envíeselo al candidato/a."),fb)}catch(e){fb()}
 });
 
 /* ---------- DATOS DEL CANDIDATO ---------- */
