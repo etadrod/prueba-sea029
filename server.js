@@ -1,7 +1,6 @@
 // Servidor de la prueba de evaluación SEA029_2.
 // Sirve la prueba (public/index.html) y guarda las entregas de los candidatos.
-// Variables de entorno: CLAVE_LECTURA (contraseñas de evaluador separadas por comas), REDIS_URL (opcional),
-// ANTHROPIC_API_KEY (opcional: valoración automática de los supuestos prácticos).
+// Variables de entorno: CLAVE_LECTURA (contraseñas de evaluador separadas por comas), REDIS_URL (opcional).
 
 const http = require('node:http');
 const fs = require('node:fs');
@@ -72,63 +71,6 @@ async function listar() {
   return [...memoria.values()];
 }
 
-// --- valoración de supuestos prácticos con Claude ---
-let anthropic = null;
-if (process.env.ANTHROPIC_API_KEY) {
-  try {
-    const Anthropic = require('@anthropic-ai/sdk');
-    anthropic = new Anthropic();
-  } catch (e) {
-    console.error('sdk de Anthropic no disponible:', e.message);
-  }
-}
-
-const SISTEMA = `Eres evaluador/a del procedimiento de acreditación de competencias profesionales (cualificación SEA029_2 Vigilancia y seguridad privada).
-Valoras la respuesta escrita de un candidato/a a uno o varios supuestos prácticos de una unidad de competencia, contrastándola con las "Respuestas a considerar como correctas por el evaluador".
-Escribe en español un único párrafo de unas 100 palabras (entre 80 y 120), en tercera persona ("El candidato/a..."), que explique qué actuaciones de referencia recoge correctamente y cuáles omite o plantea de forma incorrecta o contraria a la normativa.
-No incluyas propuestas de mejora, recomendaciones, notas numéricas, títulos, listas ni formato markdown. No inventes contenido que no esté en la respuesta. Si la respuesta está vacía o no guarda relación con el supuesto, dilo expresamente.`;
-
-function textoUC(it) {
-  let t = `Unidad de competencia: ${it.uc} ${it.title || ''}\n`;
-  for (const sp of it.sps) {
-    t += `\n--- Supuesto práctico ${sp.n} ---\nEnunciado:\n${sp.text.join('\n')}\n\nRespuestas a considerar como correctas por el evaluador:\n${sp.ref.map((r) => '- ' + r).join('\n')}\n\nRespuesta del candidato/a:\n${String(sp.answer || '').trim() || '(sin respuesta)'}\n`;
-  }
-  return t;
-}
-
-async function valorarUC(it) {
-  const r = await anthropic.beta.messages.create({
-    model: 'claude-opus-5-5',
-    max_tokens: 16000,
-    betas: ['server-side-fallback-2026-07-01'],
-    fallbacks: 'default',
-    output_config: { effort: 'medium' },
-    system: SISTEMA,
-    messages: [{ role: 'user', content: textoUC(it) }],
-  });
-  if (r.stop_reason === 'refusal') throw new Error('rechazo');
-  return r.content.filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
-}
-
-async function valorar(d, res) {
-  if (!claveOk(d.key)) return json(res, { ok: false, error: 'clave' }, 403);
-  if (!anthropic) return json(res, { ok: false, error: 'sin_clave_api' });
-  const items = (Array.isArray(d.items) ? d.items : []).filter((it) => it && it.uc && Array.isArray(it.sps) && it.sps.length).slice(0, 3);
-  const previo = await leer(String(d.id));
-  const cache = (previo && previo.val) || {};
-  const val = {};
-  await Promise.all(items.map(async (it) => {
-    if (cache[it.uc]) { val[it.uc] = cache[it.uc]; return; }
-    try { val[it.uc] = await valorarUC(it); }
-    catch (e) { console.error('valorar', it.uc, e.message); }
-  }));
-  if (previo && Object.keys(val).length) {
-    previo.val = { ...cache, ...val };
-    await guardar(previo);
-  }
-  json(res, { ok: true, val });
-}
-
 function json(res, o, codigo) {
   const b = Buffer.from(JSON.stringify(o));
   res.writeHead(codigo || 200, {
@@ -155,10 +97,6 @@ async function recibir(req, res) {
     let d = null;
     try { d = JSON.parse(datos); } catch (e) { return json(res, { ok: false, error: 'json' }, 400); }
     if (!d || !d.id) return json(res, { ok: false, error: 'id' }, 400);
-    if (d.action === 'valorar') {
-      try { return await valorar(d, res); }
-      catch (e) { console.error('valorar', e.message); return json(res, { ok: false, error: 'servidor' }, 500); }
-    }
     if (d.action === 'del') {
       if (!claveOk(d.key)) return json(res, { ok: false, error: 'clave' }, 403);
       try { await borrar(String(d.id)); return json(res, { ok: true }); }
@@ -176,7 +114,6 @@ async function recibir(req, res) {
         progress: String(d.progress || '').slice(0, 200),
         updated: Date.now(),
         payload: d.payload || (previo ? previo.payload : null),
-        val: previo ? previo.val : undefined,
       };
       await guardar(reg);
       json(res, { ok: true });
@@ -225,7 +162,7 @@ const servidor = http.createServer(async (req, res) => {
     }
   }
 
-  if (p === '/salud') return json(res, { ok: true, kv: !!(cliente && cliente.isReady), valoracion: !!anthropic });
+  if (p === '/salud') return json(res, { ok: true, kv: !!(cliente && cliente.isReady) });
 
   if (req.method === 'GET' || req.method === 'HEAD') {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });

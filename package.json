@@ -4,14 +4,7 @@
   "private": true,
   "description": "Prueba de evaluacion SEA029_2 (test + supuestos) con panel de seguimiento del evaluador",
   "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.133.0",
-    "redis": "^4.7.0"
-  },
-  "engines": {
-    "node": ">=20"
-  }
+  "scripts": { "start": "node server.js" },
+  "dependencies": { "redis": "^4.7.0" },
+  "engines": { "node": ">=20" }
 }
