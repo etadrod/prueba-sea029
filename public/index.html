@@ -179,7 +179,6 @@ footer{font-size:12px;color:var(--muted)}
       <div style="display:grid;gap:8px">
         <h3>Código de la prueba para el candidato/a</h3>
         <div class="linkbox" id="cfg-link"></div>
-        <p class="who" style="margin:0">Facilite al candidato/a la dirección <b id="cfg-base"></b> y este código, que escribirá en el campo «Código de la prueba» de su pantalla de datos.</p>
         <div class="btns"><button id="b-copylink" type="button">Copiar código</button><button id="b-defaults" type="button" class="ghost">Restablecer 10 / 5 / 5</button><button id="b-exit" type="button" class="ghost">Salir</button></div>
         <div id="cfg-msg" class="msg" hidden></div>
       </div>
@@ -351,7 +350,7 @@ $("cfg-rows").addEventListener("change",e=>{
 });
 function updLink(){
   const code=encode(CFG);store.set(LSC,code);
-  $("cfg-link").textContent=code;$("cfg-base").textContent=baseUrl().replace(/[?#].*$/,"");
+  $("cfg-link").textContent=code;
 }
 function flashCfg(cls,t){const m=$("cfg-msg");m.className="msg "+cls;m.textContent=t;m.hidden=false}
 $("b-defaults").addEventListener("click",()=>{CFG=defCfg();renderEval();flashCfg("ok","Configuración restablecida: 10, 5 y 5 preguntas, supuesto al azar.")});
