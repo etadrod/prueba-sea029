@@ -477,7 +477,8 @@ ${S.parts.map(p=>{const r=compute(p);return `<tr><td><b>${p.uc}</b> · ${esc(UCS
 <div class="tbl"><table class="r-sum"><thead><tr><th>Unidad de competencia</th><th>Realizados</th></tr></thead><tbody>
 ${S.parts.map(p=>{const s=spInfo(p);return `<tr><td><b>${p.uc}</b> · ${esc(UCS[p.uc].short)}</td><td>${s.done}</td></tr>`}).join("")}
 </tbody></table></div>
-<p class="r-note">${valNote()}</p>`;
+<p class="r-note">${valNote()}</p>
+<div class="sign" style="justify-items:end"><div style="width:min(260px,100%)">Firma del evaluador/a</div></div>`;
   const body=S.parts.map(p=>{const u=UCS[p.uc],r=compute(p),v=valOf(p);return `
 <section class="r-ucsec">
   <div class="r-uc"><span class="uc-code">${p.uc}</span><h3>${esc(u.title)}</h3></div>
@@ -491,9 +492,7 @@ ${S.parts.map(p=>{const s=spInfo(p);return `<tr><td><b>${p.uc}</b> · ${esc(UCS[
   <div class="ans">${t.trim()?esc(t):"<em>Sin respuesta</em>"}</div>`}).join("")}
   ${v?`<h4 class="r-h">Valoración del supuesto práctico</h4><p class="r-val">${esc(v)}</p>`:""}
 </section>`}).join("");
-  const tail=`
-<section class="r-ucsec"><div class="sign" style="justify-items:end"><div style="width:min(260px,100%)">Firma del evaluador/a</div></div></section>`;
-  return head+body+tail;
+  return head+body;
 }
 function reportText(){
   let t=`INFORME DE LA PRUEBA DE EVALUACIÓN · SEA029_2\n\nApellidos y nombre: ${S.name}\nDNI/NIE/Pasaporte: ${S.dni}\nLugar: ${S.place||"No indicado"}\nInicio: ${fmt(S.start)}  Entrega: ${fmt(S.end)}\nCódigo de la prueba: ${S.code}\n`;
@@ -575,6 +574,8 @@ function buildPDF(){
   table([{t:"Unidad de competencia",w:CW-70},{t:"Realizados",w:70}],
     S.parts.map(p=>{const s=spInfo(p);return [{v:`${p.uc} · ${UCS[p.uc].short}`,b:true},{v:s.done}]}),{size:9.5});
   para(valNote(),{size:9,color:C.mut,after:2});
+  {const sy=Math.max(y+28,262);need(sy-y+8);const yy=Math.max(y+28,sy);doc.setDrawColor(...C.ink);doc.setLineWidth(0.3);doc.line(W-M-70,yy,W-M,yy);doc.setLineWidth(0.2);
+   font(false,9);col(C.mut);doc.text(pdfSafe("Firma del evaluador/a"),W-M-70,yy+4.5);y=yy+8}
   S.parts.forEach(p=>{const u=UCS[p.uc],r=compute(p);
     doc.addPage();y=TOP;
     const tl=(font(true,11),doc.splitTextToSize(pdfSafe(u.title),CW-10)),hh=10+tl.length*5;
@@ -591,8 +592,6 @@ function buildPDF(){
       (t.trim()?t:"Sin respuesta").split(/\n/).forEach(x=>para(x||" ",{size:10,indent:4,bar:C.grey,after:1}));y+=2});
     const v=valOf(p);if(v){sub("Valoración del supuesto práctico");para(v,{size:10,justify:true,after:2})}
   });
-  need(40);y+=26;
-  doc.setDrawColor(...C.ink);doc.line(W-M-70,y,W-M,y);font(false,9);col(C.mut);doc.text(pdfSafe("Firma del evaluador/a"),W-M-70,y+4.5);
   const n=doc.getNumberOfPages();
   for(let i=1;i<=n;i++){doc.setPage(i);doc.setDrawColor(...C.line);doc.setLineWidth(0.2);
     if(i>1){font(false,7.5);col(C.mut);doc.text(pdfSafe("Informe de la prueba de evaluación · SEA029_2"),M,12);doc.text(pdfSafe(S.name),W-M,12,{align:"right"});doc.line(M,14.5,W-M,14.5)}
