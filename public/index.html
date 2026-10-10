@@ -181,6 +181,7 @@ footer{font-size:12px;color:var(--muted)}
       <span class="role">Evaluador/a</span>
       <h2>Configurar y revisar</h2>
       <label class="f">Nombre y apellidos<input id="ev-name" type="text" autocomplete="name"></label>
+      <label class="f">DNI / NIE<input id="ev-dni" type="text" autocomplete="off"></label>
       <label class="f">Contraseña<input id="ev-pass" type="password" autocomplete="off" inputmode="numeric"></label>
       <div id="ev-err" class="msg err" hidden>Contraseña incorrecta.</div>
       <div class="btns"><button type="submit" class="ghost">Entrar como evaluador/a</button></div>
@@ -342,8 +343,10 @@ $("f-eval").addEventListener("submit",e=>{
   e.preventDefault();
   const nm=$("ev-name").value.trim();
   if(!nm){$("ev-err").textContent="Indique su nombre y apellidos.";$("ev-err").hidden=false;$("ev-name").focus();return}
+  const dn=$("ev-dni").value.trim();
+  if(!dn){$("ev-err").textContent="Indique su DNI / NIE.";$("ev-err").hidden=false;$("ev-dni").focus();return}
   $("ev-err").textContent="Contraseña incorrecta.";
-  if(PH.includes(h("SEA029|"+$("ev-pass").value.trim()))){EVN=nm;store.set("sea029_evn",nm);EVK=$("ev-pass").value.trim();CFG=defCfg();$("ev-err").hidden=true;$("ev-pass").value="";renderEval();show("s-eval");startTrack()}
+  if(PH.includes(h("SEA029|"+$("ev-pass").value.trim()))){EVN=nm;EVD=dn;store.set("sea029_evn",nm);store.set("sea029_evd",dn);EVK=$("ev-pass").value.trim();CFG=defCfg();$("ev-err").hidden=true;$("ev-pass").value="";renderEval();show("s-eval");startTrack()}
   else{$("ev-err").hidden=false}
 });
 $("b-start-back").addEventListener("click",()=>show("s-gate"));
@@ -474,7 +477,7 @@ function reportHTML(){
   <tr><td>Unidades evaluadas</td><td>${S.parts.map(p=>p.uc).join(", ")}</td></tr>
 </tbody></table></div>
 ${S.evaluator?`<h3 class="r-sec">Datos del evaluador/a</h3>
-<div class="tbl"><table class="kv"><tbody><tr><td>Nombre y apellidos</td><td><b>${esc(S.evaluator)}</b></td></tr></tbody></table></div>`:""}
+<div class="tbl"><table class="kv"><tbody><tr><td>Nombre y apellidos</td><td><b>${esc(S.evaluator)}</b></td></tr><tr><td>DNI / NIE</td><td>${esc(S.evaluatorDni||"")}</td></tr></tbody></table></div>`:""}
 <h3 class="r-sec">Notas del test (sobre 10)</h3>
 <div class="tbl"><table class="r-sum"><thead><tr><th>Unidad de competencia</th><th style="width:22%">Nota del test</th><th style="width:22%">Aciertos</th></tr></thead><tbody>
 ${S.parts.map(p=>{const r=compute(p);return `<tr><td><b>${p.uc}</b> · ${esc(UCS[p.uc].short)}</td><td class="r-num">${r.tot?nota(r.grade):"Sin test"}</td><td class="r-num">${r.tot?r.ok+" de "+r.tot:"-"}</td></tr>`}).join("")}
@@ -484,7 +487,7 @@ ${S.parts.map(p=>{const r=compute(p);return `<tr><td><b>${p.uc}</b> · ${esc(UCS
 ${S.parts.map(p=>{const s=spInfo(p);return `<tr><td><b>${p.uc}</b> · ${esc(UCS[p.uc].short)}</td><td>${s.done}</td></tr>`}).join("")}
 </tbody></table></div>
 <p class="r-note">${valNote()}</p>
-<div class="sign" style="justify-items:end"><div style="width:min(260px,100%);flex-direction:column;align-items:flex-start;justify-content:flex-end">Firma del evaluador/a${S.evaluator?`<b style="color:var(--ink)">${esc(S.evaluator)}</b>`:""}</div></div>`;
+<div class="sign" style="justify-items:end"><div style="width:min(260px,100%);flex-direction:column;align-items:flex-start;justify-content:flex-end">Firma del evaluador/a${S.evaluator?`<b style="color:var(--ink)">${esc(S.evaluator)}</b>${S.evaluatorDni?`<span>DNI / NIE: ${esc(S.evaluatorDni)}</span>`:""}`:""}</div></div>`;
   const body=S.parts.map(p=>{const u=UCS[p.uc],r=compute(p),v=valOf(p);return `
 <section class="r-ucsec">
   <div class="r-uc"><span class="uc-code">${p.uc}</span><h3>${esc(u.title)}</h3></div>
@@ -501,7 +504,7 @@ ${S.parts.map(p=>{const s=spInfo(p);return `<tr><td><b>${p.uc}</b> · ${esc(UCS[
   return head+body;
 }
 function reportText(){
-  let t=`INFORME DE LA PRUEBA DE EVALUACIÓN · SEA029_2\n\nApellidos y nombre: ${S.name}\nDNI/NIE/Pasaporte: ${S.dni}\nLugar: ${S.place||"No indicado"}\nInicio: ${fmt(S.start)}  Entrega: ${fmt(S.end)}\nCódigo de la prueba: ${S.code}\n`+(S.evaluator?`Evaluador/a: ${S.evaluator}\n`:"");
+  let t=`INFORME DE LA PRUEBA DE EVALUACIÓN · SEA029_2\n\nApellidos y nombre: ${S.name}\nDNI/NIE/Pasaporte: ${S.dni}\nLugar: ${S.place||"No indicado"}\nInicio: ${fmt(S.start)}  Entrega: ${fmt(S.end)}\nCódigo de la prueba: ${S.code}\n`+(S.evaluator?`Evaluador/a: ${S.evaluator}${S.evaluatorDni?" (DNI/NIE "+S.evaluatorDni+")":""}\n`:"");
   t+="\nSUPUESTOS PRÁCTICOS\n";S.parts.forEach(p=>{const x=spInfo(p);t+=`${p.uc}: realizados: ${x.done}.\n`});
   S.parts.forEach(p=>{const u=UCS[p.uc],r=compute(p);
     t+=`\n==== ${p.uc} ${u.title} ====\n\n`+(r.tot?`PARTE A. TEST\nNota del test: ${nota(r.grade)} sobre 10 (${r.ok} de ${r.tot} aciertos)\n\n`:"Sin test en esta unidad.\n");
@@ -573,7 +576,7 @@ function buildPDF(){
   sec("Datos del candidato/a");
   table([{t:"Dato",w:55},{t:"Valor",w:CW-55}],[["Apellidos y nombre",S.name,1],["DNI / NIE / Pasaporte",S.dni],["Lugar",S.place||"No indicado"],
     ["Inicio / entrega",`${fmt(S.start)} / ${fmt(S.end)}`],["Unidades evaluadas",S.parts.map(p=>p.uc).join(", ")]].map(([k,v,b])=>[{v:k,c:C.mut},{v,b:!!b}]),{labelCol:true,size:9.5});
-  if(S.evaluator){sec("Datos del evaluador/a");table([{t:"Dato",w:55},{t:"Valor",w:CW-55}],[[{v:"Nombre y apellidos",c:C.mut},{v:S.evaluator,b:true}]],{labelCol:true,size:9.5})}
+  if(S.evaluator){sec("Datos del evaluador/a");table([{t:"Dato",w:55},{t:"Valor",w:CW-55}],[[{v:"Nombre y apellidos",c:C.mut},{v:S.evaluator,b:true}],[{v:"DNI / NIE",c:C.mut},{v:S.evaluatorDni||""}]],{labelCol:true,size:9.5})}
   sec("Notas del test (sobre 10)");
   table([{t:"Unidad de competencia",w:CW-70},{t:"Nota del test",w:35},{t:"Aciertos",w:35}],
     S.parts.map(p=>{const r=compute(p);return [{v:`${p.uc} · ${UCS[p.uc].short}`,b:true},{v:r.tot?nota(r.grade):"Sin test",b:!!r.tot},{v:r.tot?`${r.ok} de ${r.tot}`:"-"}]}),{size:9.5});
@@ -581,9 +584,10 @@ function buildPDF(){
   table([{t:"Unidad de competencia",w:CW-70},{t:"Realizados",w:70}],
     S.parts.map(p=>{const s=spInfo(p);return [{v:`${p.uc} · ${UCS[p.uc].short}`,b:true},{v:s.done}]}),{size:9.5});
   para(valNote(),{size:9,color:C.mut,after:2});
-  {const sy=Math.max(y+28,258);need(sy-y+8);const yy=Math.max(y+28,sy);doc.setDrawColor(...C.ink);doc.setLineWidth(0.3);doc.line(W-M-70,yy,W-M,yy);doc.setLineWidth(0.2);
+  {let yy=Math.max(y+12,250);if(yy+16>281){doc.addPage();y=TOP;yy=y+20}doc.setDrawColor(...C.ink);doc.setLineWidth(0.3);doc.line(W-M-70,yy,W-M,yy);doc.setLineWidth(0.2);
    font(false,9);col(C.mut);doc.text(pdfSafe("Firma del evaluador/a"),W-M-70,yy+4.5);
-   if(S.evaluator){font(true,9.5);col(C.ink);doc.text(doc.splitTextToSize(pdfSafe(S.evaluator),70),W-M-70,yy+9.5)}y=yy+14}
+   if(S.evaluator){font(true,9.5);col(C.ink);doc.text(doc.splitTextToSize(pdfSafe(S.evaluator),70),W-M-70,yy+9.5);
+     if(S.evaluatorDni){font(false,9);col(C.mut);doc.text(pdfSafe("DNI / NIE: "+S.evaluatorDni),W-M-70,yy+14)}}y=yy+18}
   S.parts.forEach(p=>{const u=UCS[p.uc],r=compute(p);
     doc.addPage();y=TOP;
     const tl=(font(true,11),doc.splitTextToSize(pdfSafe(u.title),CW-10)),hh=10+tl.length*5;
@@ -648,8 +652,8 @@ async function deliver(){if(!canNet||!S||S.sent||delivering)return;delivering=tr
 }
 
 /* ---------- SEGUIMIENTO (EVALUADOR) ---------- */
-let trkTimer=null,trkItems=[],EVK="",EVN="";
-$("ev-name").value=store.get("sea029_evn")||"";
+let trkTimer=null,trkItems=[],EVK="",EVN="",EVD="";
+$("ev-name").value=store.get("sea029_evn")||"";$("ev-dni").value=store.get("sea029_evd")||"";
 $("b-trk-refresh").addEventListener("click",()=>{$("trk-state").textContent="Actualizando…";pollTrack()});
 function ago(ms){const s=Math.round((Date.now()-ms)/1000);if(s<60)return`hace ${s} s`;const m=Math.round(s/60);if(m<60)return`hace ${m} min`;return fmt(ms)}
 function trkMsg(cls,t){const m=$("trk-msg");if(!t){m.hidden=true;return}m.className="msg "+cls;m.textContent=t;m.hidden=false}
@@ -704,7 +708,7 @@ $("trk-rows").addEventListener("click",async e=>{const b=e.target.closest("butto
   try{const r=await fetch(SERVER_URL+"?action=get&id="+encodeURIComponent(x.id)+"&key="+encodeURIComponent(EVK));const j=await r.json();
     if(!j.ok||!j.payload){trkMsg("err","No se pudo recuperar la prueba de "+x.name+".");return}
     const val=autoVal(j.payload);
-    const keep=S;S=Object.assign({},j.payload,{val,evaluator:EVN});
+    const keep=S;S=Object.assign({},j.payload,{val,evaluator:EVN,evaluatorDni:EVD});
     try{if(b.dataset.fmt==="pdf"){const doc=buildPDF();if(!doc){trkMsg("err","No se pudo generar el PDF (sin conexión con la librería).");return}directSave(doc.output("blob"),fileName("pdf"))}
         else directSave(new Blob([standaloneDoc()],{type:"text/html"}),fileName("html"))}
     finally{S=keep}
