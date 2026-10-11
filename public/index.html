@@ -203,6 +203,12 @@ footer{font-size:12px;color:var(--muted)}
         <div class="btns"><button id="b-copylink" type="button">Copiar código</button><button id="b-defaults" type="button" class="ghost">Restablecer 10 / 5 / 5</button><button id="b-exit" type="button" class="ghost">Salir</button></div>
         <div id="cfg-msg" class="msg" hidden></div>
       </div>
+      <div style="display:grid;gap:8px">
+        <h3>Prueba en papel</h3>
+        <p class="sub">Descarga en Word (.docx) las preguntas y supuestos según la configuración anterior, con espacio para responder, y la clave de corrección del mismo modelo. Las preguntas se eligen al azar; «Nueva selección» genera otro modelo.</p>
+        <div class="btns"><button id="b-paper" type="button">Descargar prueba (.docx)</button><button id="b-paper-key" type="button" class="ghost">Descargar clave de corrección (.docx)</button><button id="b-paper-new" type="button" class="ghost">Nueva selección</button></div>
+        <div id="paper-msg" class="msg" hidden></div>
+      </div>
     </div>
     <div class="card" id="track">
       <div class="block-h"><h2>Seguimiento de candidatos</h2><div class="top-tools"><span class="tag" id="trk-state">Sin conexión</span><button type="button" id="b-trk-refresh" class="ghost small">Refrescar</button></div></div>
@@ -231,6 +237,7 @@ footer{font-size:12px;color:var(--muted)}
       <div class="grid2">
         <label class="f">Apellidos y nombre<input id="c-name" type="text" autocomplete="name"></label>
         <label class="f">DNI / NIE / Pasaporte<input id="c-dni" type="text"></label>
+        <label class="f">Email<input id="c-email" type="email" autocomplete="email" inputmode="email"></label>
         <label class="f">Lugar de realización<input id="c-place" type="text" placeholder="Municipio"></label>
       </div>
       <div style="display:grid;gap:10px"><span style="font-weight:500;font-size:14px">La prueba incluye, en este orden:</span>
@@ -387,6 +394,81 @@ $("b-copylink").addEventListener("click",()=>{
   try{navigator.clipboard.writeText(t).then(()=>flashCfg("ok","Código copiado. Envíeselo al candidato/a."),fb)}catch(e){fb()}
 });
 
+/* ---------- PRUEBA EN PAPEL (.docx) ---------- */
+const CRCT=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+function crc32(b){let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=CRCT[(c^b[i])&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0}
+function zipStore(files){const enc=new TextEncoder(),parts=[],cen=[];let off=0;
+  const u16=v=>[v&255,(v>>>8)&255],u32=v=>[v&255,(v>>>8)&255,(v>>>16)&255,(v>>>24)&255];
+  files.forEach(([name,txt])=>{const nb=enc.encode(name),d=enc.encode(txt),c=crc32(d);
+    const lh=new Uint8Array([...u32(0x04034b50),...u16(20),...u16(0x0800),...u16(0),...u16(0),...u16(0x21),...u32(c),...u32(d.length),...u32(d.length),...u16(nb.length),...u16(0)]);
+    parts.push(lh,nb,d);
+    cen.push(new Uint8Array([...u32(0x02014b50),...u16(20),...u16(20),...u16(0x0800),...u16(0),...u16(0),...u16(0x21),...u32(c),...u32(d.length),...u32(d.length),...u16(nb.length),...u16(0),...u16(0),...u16(0),...u16(0),...u32(0),...u32(off)]),nb);
+    off+=lh.length+nb.length+d.length});
+  const csz=cen.reduce((a,x)=>a+x.length,0);
+  const end=new Uint8Array([...u32(0x06054b50),...u16(0),...u16(0),...u16(files.length),...u16(files.length),...u32(csz),...u32(off),...u16(0)]);
+  return new Blob([...parts,...cen,end],{type:"application/vnd.openxmlformats-officedocument.wordprocessingml.document"})}
+function xe(t){return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
+const W_NAVY="163454";
+function wr(t,o={}){return `<w:r><w:rPr>${o.b?"<w:b/>":""}${o.i?"<w:i/>":""}${o.c?`<w:color w:val="${o.c}"/>`:""}${o.sz?`<w:sz w:val="${o.sz*2}"/><w:szCs w:val="${o.sz*2}"/>`:""}${o.caps?"<w:caps/>":""}</w:rPr><w:t xml:space="preserve">${xe(t)}</w:t></w:r>`}
+function wp(runs,o={}){const r=Array.isArray(runs)?runs.join(""):(typeof runs==="string"&&runs.startsWith("<w:r>")?runs:wr(runs,o));
+  return `<w:p><w:pPr>${o.keep?"<w:keepNext/>":""}${o.pb?"<w:pageBreakBefore/>":""}${o.bb?`<w:pBdr><w:bottom w:val="single" w:sz="${o.bbsz||6}" w:space="1" w:color="${o.bb}"/></w:pBdr>`:""}${o.fill?`<w:shd w:val="clear" w:color="auto" w:fill="${o.fill}"/>`:""}<w:spacing w:before="${o.before||0}" w:after="${o.after!==undefined?o.after:100}"${o.line?` w:line="${o.line}" w:lineRule="auto"`:""}/>${o.ind?`<w:ind w:left="${o.ind}"/>`:""}${o.jc?`<w:jc w:val="${o.jc}"/>`:""}</w:pPr>${r}</w:p>`}
+function wtable(rows,w1){const b=`<w:tblBorders>${["top","left","bottom","right","insideH","insideV"].map(s=>`<w:${s} w:val="single" w:sz="4" w:color="A8B3BD"/>`).join("")}</w:tblBorders>`;
+  return `<w:tbl><w:tblPr><w:tblW w:w="5000" w:type="pct"/>${b}<w:tblCellMar><w:top w:w="80" w:type="dxa"/><w:bottom w:w="80" w:type="dxa"/><w:left w:w="100" w:type="dxa"/><w:right w:w="100" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid><w:gridCol w:w="${w1}"/><w:gridCol w:w="${9638-w1}"/></w:tblGrid>`+
+  rows.map(([k,v])=>`<w:tr><w:tc><w:tcPr><w:tcW w:w="${w1}" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="E9EFF6"/></w:tcPr>${wp(wr(k,{sz:10,c:"4A5560"}),{after:0})}</w:tc><w:tc><w:tcPr><w:tcW w:w="${9638-w1}" w:type="dxa"/></w:tcPr>${wp(wr(v||" ",{sz:10.5,b:!!v}),{after:0})}</w:tc></w:tr>`).join("")+`</w:tbl>`}
+function wlines(n){const row=`<w:tr><w:trPr><w:trHeight w:val="440" w:hRule="exact"/></w:trPr><w:tc><w:tcPr><w:tcW w:w="9638" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:spacing w:after="0"/></w:pPr></w:p></w:tc></w:tr>`;
+  return `<w:tbl><w:tblPr><w:tblW w:w="5000" w:type="pct"/><w:tblBorders><w:top w:val="single" w:sz="4" w:color="A8B3BD"/><w:bottom w:val="single" w:sz="4" w:color="A8B3BD"/><w:insideH w:val="single" w:sz="4" w:color="A8B3BD"/><w:left w:val="nil"/><w:right w:val="nil"/><w:insideV w:val="nil"/></w:tblBorders></w:tblPr><w:tblGrid><w:gridCol w:w="9638"/></w:tblGrid>${row.repeat(n)}</w:tbl>`+wp(" ",{after:0})}
+function docxFile(body,footer){
+  const doc=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body>${body}<w:sectPr><w:footerReference w:type="default" r:id="rIdF"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="567" w:footer="567" w:gutter="0"/></w:sectPr></w:body></w:document>`;
+  const ftr=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:pPr><w:pBdr><w:top w:val="single" w:sz="4" w:space="4" w:color="C6CDD4"/></w:pBdr><w:tabs><w:tab w:val="right" w:pos="9638"/></w:tabs></w:pPr>${wr(footer,{sz:8,c:"60696F"})}<w:r><w:rPr><w:sz w:val="16"/><w:color w:val="60696F"/></w:rPr><w:tab/><w:t xml:space="preserve">Página </w:t></w:r><w:r><w:rPr><w:sz w:val="16"/><w:color w:val="60696F"/></w:rPr><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:rPr><w:sz w:val="16"/><w:color w:val="60696F"/></w:rPr><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r><w:r><w:rPr><w:sz w:val="16"/><w:color w:val="60696F"/></w:rPr><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:sz w:val="16"/><w:color w:val="60696F"/></w:rPr><w:t>1</w:t></w:r><w:r><w:rPr><w:sz w:val="16"/><w:color w:val="60696F"/></w:rPr><w:fldChar w:fldCharType="end"/></w:r></w:p></w:ftr>`;
+  const styles=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:eastAsia="Arial" w:cs="Arial"/><w:sz w:val="21"/><w:szCs w:val="21"/><w:lang w:val="es-ES"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="100" w:line="264" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style></w:styles>`;
+  return zipStore([
+    ["[Content_Types].xml",`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/></Types>`],
+    ["_rels/.rels",`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`],
+    ["word/_rels/document.xml.rels",`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdS" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rIdF" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/></Relationships>`],
+    ["word/document.xml",doc],["word/styles.xml",styles],["word/footer1.xml",ftr]])}
+let PAPER=null;
+function paperSel(){if(PAPER&&PAPER.code===encode(CFG))return PAPER;
+  const parts=CODES.map((uc,i)=>{if(!ucOn(CFG,i))return null;const u=UCS[uc];return {uc,qids:sample(u.items.length,CFG.n[i]),sps:spList(u,CFG.s[i])}}).filter(Boolean);
+  PAPER={code:encode(CFG),model:Math.random().toString(36).slice(2,6).toUpperCase(),parts};return PAPER}
+function paperHead(t,P){return wp(wr("ACREDITACIÓN DE COMPETENCIAS PROFESIONALES",{sz:8,c:"FFFFFF"}),{fill:W_NAVY,after:0,before:0})+
+  wp(wr(t,{sz:16,b:true,c:"FFFFFF"}),{fill:W_NAVY,after:0})+
+  wp(wr(`Cualificación SEA029_2 · Vigilancia y seguridad privada · Modelo ${P.model} · ${P.code}`,{sz:9.5,c:"FFFFFF"}),{fill:W_NAVY,after:240})}
+function wsec(t){return wp(wr(t,{sz:10,b:true,c:W_NAVY,caps:true}),{bb:W_NAVY,bbsz:8,before:200,after:140,keep:true})}
+function wuc(uc,first){return wp([wr(uc+"  ",{sz:13,b:true,c:W_NAVY}),wr(UCS[uc].title,{sz:11,b:true})],{fill:"E9EFF6",before:first?120:0,after:160,pb:!first,keep:true})}
+function paperDoc(P){let b=paperHead("Prueba de evaluación",P);
+  b+=wsec("Datos del candidato/a")+wtable([["Apellidos y nombre",""],["DNI / NIE / Pasaporte",""],["Email",""],["Lugar y fecha",""]],3000);
+  b+=wp(wr("Marque con una X una sola respuesta en cada pregunta del test. Responda a cada supuesto práctico en el espacio indicado; si necesita más espacio, use hojas adicionales indicando la UC y el número de supuesto.",{sz:9.5,c:"4A5560",i:true}),{before:160,after:120,jc:"both"});
+  P.parts.forEach((p,pi)=>{const u=UCS[p.uc];b+=wuc(p.uc,pi===0);
+    if(p.qids.length){b+=wsec(`Parte A · Test (${p.qids.length} preguntas)`);
+      p.qids.forEach((qi,n)=>{const it=u.items[qi];b+=wp([wr(`${n+1}. `,{b:true,c:W_NAVY}),wr(it.q,{b:true})],{keep:true,after:60,before:80});
+        it.o.forEach((o,oi)=>{b+=wp([wr("☐  "),wr(`${L[oi]}) `,{b:true}),wr(o)],{ind:360,after:30,keep:oi<it.o.length-1})})})}
+    else b+=wp(wr("Sin test en esta unidad.",{i:true,c:"60696F"}));
+    p.sps.forEach(n=>{const sp=spOf(p.uc,n);b+=wsec(`Parte B · Supuesto práctico ${n}`);
+      sp.text.forEach(x=>{b+=wp(x,{jc:"both",after:100})});
+      b+=wp(wr("Respuesta del candidato/a:",{b:true,sz:10,c:"4A5560"}),{before:120,after:60,keep:true});
+      b+=wlines(22)});
+    if(!p.sps.length)b+=wp(wr("No se realiza supuesto práctico en esta unidad.",{i:true,c:"60696F"}),{before:120})});
+  b+=wp(" ",{before:600,after:0})+wp(wr("Firma del candidato/a",{sz:9,c:"60696F"}),{jc:"right",after:0});
+  return docxFile(b,`Prueba de evaluación SEA029_2 · Modelo ${P.model}`)}
+function keyDoc(P){let b=paperHead("Clave de corrección",P);
+  b+=wp(wr("Documento solo para el evaluador/a. Corresponde a la prueba en papel del mismo modelo.",{sz:9.5,c:"4A5560",i:true}),{after:120});
+  P.parts.forEach((p,pi)=>{const u=UCS[p.uc];b+=wuc(p.uc,pi===0);
+    if(p.qids.length){b+=wsec(`Parte A · Test (${p.qids.length} preguntas)`);
+      p.qids.forEach((qi,n)=>{const it=u.items[qi];b+=wp([wr(`${n+1}. `,{b:true,c:W_NAVY}),wr(it.q)],{after:30,keep:true});
+        b+=wp([wr("Respuesta correcta: ",{b:true,c:"1E6E3C"}),wr(`${L[it.k]}) ${it.o[it.k]}`)],{ind:360,after:100})})}
+    else b+=wp(wr("Sin test en esta unidad.",{i:true,c:"60696F"}));
+    p.sps.forEach(n=>{const sp=spOf(p.uc,n);b+=wsec(`Parte B · Supuesto práctico ${n} · Respuestas a considerar como correctas`);
+      sp.ref.forEach(r=>{b+=wp([wr("•  ",{b:true,c:W_NAVY}),wr(r)],{ind:360,jc:"both",after:80})})});
+    if(!p.sps.length)b+=wp(wr("No se realiza supuesto práctico en esta unidad.",{i:true,c:"60696F"}),{before:120})});
+  b+=wp(" ",{before:600,after:0})+wp(wr("Firma del evaluador/a",{sz:9,c:"60696F"}),{jc:"right",after:0})+(EVN?wp(wr(EVN,{b:true,sz:10}),{jc:"right",after:0}):"");
+  return docxFile(b,`Clave de corrección SEA029_2 · Modelo ${P.model}`)}
+function paperMsg(cls,t){const m=$("paper-msg");m.className="msg "+cls;m.textContent=t;m.hidden=false}
+$("b-paper").addEventListener("click",()=>{const P=paperSel();directSave(paperDoc(P),`Prueba_SEA029_2_Modelo_${P.model}.docx`);
+  paperMsg("ok",`Prueba descargada (modelo ${P.model}). Descargue también la clave de corrección de este mismo modelo.`)});
+$("b-paper-key").addEventListener("click",()=>{const P=paperSel();directSave(keyDoc(P),`Clave_SEA029_2_Modelo_${P.model}.docx`);
+  paperMsg("ok",`Clave de corrección descargada (modelo ${P.model}).`)});
+$("b-paper-new").addEventListener("click",()=>{PAPER=null;const P=paperSel();paperMsg("ok",`Nueva selección de preguntas y supuestos: modelo ${P.model}. Descargue la prueba y su clave.`)});
+
 /* ---------- DATOS DEL CANDIDATO ---------- */
 function spList(u,s){if(s===8)return [];return s===9?u.sps.map(x=>x.n):[s||u.sps[Math.floor(Math.random()*u.sps.length)].n]}
 function spLabel(u,s){return s===8?"sin supuesto práctico":(s===9?`${u.sps.length} supuestos prácticos`:(s?`supuesto práctico ${s}`:"1 supuesto práctico"))}
@@ -404,12 +486,13 @@ $("f-start").addEventListener("submit",e=>{
   const typed=decode($("c-code").value);if(typed)CFG=typed;else err.push("revise el código de la prueba");
   if(!name)err.push("escriba sus apellidos y nombre");
   if(!dni)err.push("escriba su DNI, NIE o pasaporte");
+  const email=$("c-email").value.trim();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))err.push("escriba un email válido");
   if(!$("c-decl").checked)err.push("marque la declaración de realización personal");
   if(err.length){$("start-err").textContent="Para comenzar, "+err.join(", ")+".";$("start-err").hidden=false;return}
   $("start-err").hidden=true;
   const parts=CODES.map((uc,i)=>{if(!ucOn(CFG,i))return null;const u=UCS[uc];const qids=sample(u.items.length,CFG.n[i]);const sps=spList(u,CFG.s[i]);
     return {uc,qids,order:qids.map(q=>sample(u.items[q].o.length,u.items[q].o.length)),ans:qids.map(()=>null),sps,texts:sps.map(()=>"")}}).filter(Boolean);
-  S={id:uid(),name,dni,place:$("c-place").value.trim(),code:encode(CFG),start:Date.now(),end:null,parts,done:false};
+  S={id:uid(),name,dni,email,place:$("c-place").value.trim(),code:encode(CFG),start:Date.now(),end:null,parts,done:false};
   save();showExam();startHeartbeat();
 });
 
@@ -472,6 +555,7 @@ function reportHTML(){
 <div class="tbl"><table class="kv"><tbody>
   <tr><td>Apellidos y nombre</td><td><b>${esc(S.name)}</b></td></tr>
   <tr><td>DNI / NIE / Pasaporte</td><td>${esc(S.dni)}</td></tr>
+  <tr><td>Email</td><td>${esc(S.email||"No indicado")}</td></tr>
   <tr><td>Lugar</td><td>${esc(S.place||"No indicado")}</td></tr>
   <tr><td>Inicio / entrega</td><td>${fmt(S.start)} / ${fmt(S.end)}</td></tr>
   <tr><td>Unidades evaluadas</td><td>${S.parts.map(p=>p.uc).join(", ")}</td></tr>
@@ -504,7 +588,7 @@ ${S.parts.map(p=>{const s=spInfo(p);return `<tr><td><b>${p.uc}</b> · ${esc(UCS[
   return head+body;
 }
 function reportText(){
-  let t=`INFORME DE LA PRUEBA DE EVALUACIÓN · SEA029_2\n\nApellidos y nombre: ${S.name}\nDNI/NIE/Pasaporte: ${S.dni}\nLugar: ${S.place||"No indicado"}\nInicio: ${fmt(S.start)}  Entrega: ${fmt(S.end)}\nCódigo de la prueba: ${S.code}\n`+(S.evaluator?`Evaluador/a: ${S.evaluator}${S.evaluatorDni?" (DNI/NIE "+S.evaluatorDni+")":""}\n`:"");
+  let t=`INFORME DE LA PRUEBA DE EVALUACIÓN · SEA029_2\n\nApellidos y nombre: ${S.name}\nDNI/NIE/Pasaporte: ${S.dni}\nEmail: ${S.email||"No indicado"}\nLugar: ${S.place||"No indicado"}\nInicio: ${fmt(S.start)}  Entrega: ${fmt(S.end)}\nCódigo de la prueba: ${S.code}\n`+(S.evaluator?`Evaluador/a: ${S.evaluator}${S.evaluatorDni?" (DNI/NIE "+S.evaluatorDni+")":""}\n`:"");
   t+="\nSUPUESTOS PRÁCTICOS\n";S.parts.forEach(p=>{const x=spInfo(p);t+=`${p.uc}: realizados: ${x.done}.\n`});
   S.parts.forEach(p=>{const u=UCS[p.uc],r=compute(p);
     t+=`\n==== ${p.uc} ${u.title} ====\n\n`+(r.tot?`PARTE A. TEST\nNota del test: ${nota(r.grade)} sobre 10 (${r.ok} de ${r.tot} aciertos)\n\n`:"Sin test en esta unidad.\n");
@@ -574,7 +658,7 @@ function buildPDF(){
   font(false,7.5);doc.text(pdfSafe("Código de la prueba"),W-M,21,{align:"right"});font(true,9);doc.text(pdfSafe(S.code),W-M,26,{align:"right"});
   y=44;
   sec("Datos del candidato/a");
-  table([{t:"Dato",w:55},{t:"Valor",w:CW-55}],[["Apellidos y nombre",S.name,1],["DNI / NIE / Pasaporte",S.dni],["Lugar",S.place||"No indicado"],
+  table([{t:"Dato",w:55},{t:"Valor",w:CW-55}],[["Apellidos y nombre",S.name,1],["DNI / NIE / Pasaporte",S.dni],["Email",S.email||"No indicado"],["Lugar",S.place||"No indicado"],
     ["Inicio / entrega",`${fmt(S.start)} / ${fmt(S.end)}`],["Unidades evaluadas",S.parts.map(p=>p.uc).join(", ")]].map(([k,v,b])=>[{v:k,c:C.mut},{v,b:!!b}]),{labelCol:true,size:9.5});
   if(S.evaluator){sec("Datos del evaluador/a");table([{t:"Dato",w:55},{t:"Valor",w:CW-55}],[[{v:"Nombre y apellidos",c:C.mut},{v:S.evaluator,b:true}],[{v:"DNI / NIE",c:C.mut},{v:S.evaluatorDni||""}]],{labelCol:true,size:9.5})}
   sec("Notas del test (sobre 10)");
