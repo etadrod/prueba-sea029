@@ -82,7 +82,7 @@ function json(res, o, codigo) {
 }
 
 function resumen(r) {
-  return { id: r.id, name: r.name, dni: r.dni, status: r.status, progress: r.progress, updated: r.updated };
+  return { id: r.id, name: r.name, dni: r.dni, status: r.status, progress: r.progress, updated: r.updated, start: r.start, end: r.end };
 }
 
 async function recibir(req, res) {
@@ -113,6 +113,8 @@ async function recibir(req, res) {
         status: String(d.status || '').slice(0, 40),
         progress: String(d.progress || '').slice(0, 200),
         updated: Date.now(),
+        start: Number(d.start) || (previo ? previo.start : null) || null,
+        end: Number(d.end) || (previo ? previo.end : null) || null,
         payload: d.payload || (previo ? previo.payload : null),
       };
       await guardar(reg);
