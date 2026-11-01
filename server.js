@@ -58,6 +58,24 @@ async function borrar(id) {
   memoria.delete(id);
 }
 
+// Banco de preguntas editado por el evaluador (si no existe, la página usa el banco original incluido en ella).
+let bancoMem = null;
+async function leerBanco() {
+  if (cliente && cliente.isReady) {
+    const t = await cliente.get(PREFIJO + 'banco');
+    return t ? JSON.parse(t) : null;
+  }
+  return bancoMem;
+}
+async function guardarBanco(b) {
+  if (cliente && cliente.isReady) {
+    if (b) await cliente.set(PREFIJO + 'banco', JSON.stringify(b));
+    else await cliente.del(PREFIJO + 'banco');
+    return;
+  }
+  bancoMem = b;
+}
+
 async function listar() {
   if (cliente && cliente.isReady) {
     const ids = await cliente.sMembers(PREFIJO + 'ids');
@@ -97,6 +115,13 @@ async function recibir(req, res) {
     let d = null;
     try { d = JSON.parse(datos); } catch (e) { return json(res, { ok: false, error: 'json' }, 400); }
     if (!d || !d.id) return json(res, { ok: false, error: 'id' }, 400);
+    if (d.action === 'bank') {
+      if (!claveOk(d.key)) return json(res, { ok: false, error: 'clave' }, 403);
+      try {
+        await guardarBanco(d.bank && typeof d.bank === 'object' ? { bank: d.bank, updated: Date.now() } : null);
+        return json(res, { ok: true });
+      } catch (e) { console.error('bank', e.message); return json(res, { ok: false, error: 'servidor' }, 500); }
+    }
     if (d.action === 'del') {
       if (!claveOk(d.key)) return json(res, { ok: false, error: 'clave' }, 403);
       try { await borrar(String(d.id)); return json(res, { ok: true }); }
@@ -151,6 +176,10 @@ const servidor = http.createServer(async (req, res) => {
       if (a === 'ack') {
         const r = await leer(u.searchParams.get('id') || '');
         return json(res, { ok: true, status: r ? r.status : null });
+      }
+      if (a === 'bank') {
+        const b = await leerBanco();
+        return json(res, { ok: true, bank: b ? b.bank : null, updated: b ? b.updated : null });
       }
       if (!claveOk(u.searchParams.get('key'))) return json(res, { ok: false, error: 'clave' }, 403);
       if (a === 'list') {

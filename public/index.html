@@ -112,6 +112,12 @@ summary{cursor:pointer;font-weight:600}
 .bank-i ol{margin:0;padding-left:22px;list-style:lower-alpha}
 .bank-i li.k{color:var(--ok);font-weight:600}
 .bank-i .meta{font-size:12px;color:var(--muted)}
+.bank-i.off{opacity:.55}
+.bank-i.off .q-n::after{content:" · eliminada";color:var(--bad)}
+.ed{display:grid;gap:10px;padding:12px;border:1px solid var(--accent);border-radius:6px;background:var(--accent-soft);margin-top:10px}
+.ed textarea{min-height:90px}
+.ed .opt-row{display:grid;grid-template-columns:auto auto 1fr;gap:8px;align-items:center}
+.bank-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 /* informe */
 .rep{display:grid;gap:18px}
 .rep table{width:100%;border-collapse:collapse;font-size:14px}
@@ -228,7 +234,9 @@ footer{font-size:12px;color:var(--muted)}
     </div>
     <div class="card">
       <h2>Banco de preguntas y claves</h2>
-      <p class="sub">La opción correcta aparece en verde. Al candidato/a las opciones le salen en orden aleatorio.</p>
+      <p class="sub">La opción correcta aparece en verde. Al candidato/a las opciones le salen en orden aleatorio. Puede editar, añadir o eliminar preguntas y supuestos; los cambios se guardan en el servidor y se aplican a las pruebas que empiecen a partir de ese momento.</p>
+      <div class="bank-tools"><button type="button" id="b-bank-exp" class="ghost small">Exportar banco (.json)</button><button type="button" id="b-bank-imp" class="ghost small">Importar banco (.json)</button><button type="button" id="b-bank-reset" class="ghost small danger">Restaurar banco original</button><input type="file" id="f-bank-imp" accept=".json,application/json" hidden><span class="who" id="bank-state"></span></div>
+      <div id="bank-msg" class="msg" hidden></div>
       <div id="bank" style="display:grid;gap:10px"></div>
     </div>
     <div class="card">
@@ -303,6 +311,13 @@ const B64="eyJFQ1AwMDgwXzIiOiB7InRpdGxlIjogIkVmZWN0dWFyIGxhIHZpZ2lsYW5jaWEgeSBwc
 const SERVER_URL="/api";
 const UCS=JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(B64),c=>c.charCodeAt(0))));
 const CODES=Object.keys(UCS);
+const ORIG_BANK=JSON.stringify(CODES.reduce((o,c)=>(o[c]={items:UCS[c].items,sps:UCS[c].sps},o),{}));
+function actQ(u){return u.items.map((_,i)=>i).filter(i=>!u.items[i].off)}
+function actS(u){return u.sps.filter(s=>!s.off)}
+function QI(u,qi){return u.items[qi]||{q:"(pregunta eliminada del banco)",o:["-","-","-"],k:0}}
+function sampleFrom(arr,k){return sample(arr.length,Math.min(k,arr.length)).map(i=>arr[i])}
+function bankData(){return CODES.reduce((o,c)=>(o[c]={items:UCS[c].items,sps:UCS[c].sps},o),{})}
+function applyBank(b){if(!b||typeof b!=="object")return false;let ok=false;CODES.forEach(c=>{if(b[c]&&Array.isArray(b[c].items)&&Array.isArray(b[c].sps)){UCS[c].items=b[c].items;UCS[c].sps=b[c].sps;ok=true}});return ok}
 const PH=[2783594175,1703893711,3968899963];
 function h(s){let x=0x811c9dc5;for(const c of s){x^=c.charCodeAt(0);x=Math.imul(x,16777619)>>>0}return x}
 
@@ -340,7 +355,7 @@ function decode(t){
   const m=raw.replace(/\s+/g,"").match(/ev-([01]{3})-(\d{1,2})-(\d{1,2})-(\d{1,2})-(\d)-(\d)-(\d)(?!\d)/);
   if(!m) return null;
   const c={u:m[1].split("").map(Number),n:[+m[2],+m[3],+m[4]],s:[+m[5],+m[6],+m[7]]};
-  CODES.forEach((code,i)=>{const u=UCS[code];c.n[i]=Math.max(0,Math.min(u.items.length,c.n[i]));if(c.s[i]>u.sps.length&&c.s[i]!==9&&c.s[i]!==8)c.s[i]=0});
+  CODES.forEach((code,i)=>{c.n[i]=Math.max(0,Math.min(99,c.n[i]||0));if(!(c.s[i]>=0&&c.s[i]<=99))c.s[i]=0});
   if(!hasContent(c)) {c.u=[1,1,1];c.n=CODES.map(x=>UCS[x].def);c.s=CODES.map(()=>0)}
   return c;
 }
@@ -369,20 +384,86 @@ $("b-start-back").addEventListener("click",()=>show("s-gate"));
 function baseUrl(){return (window.claude&&window.claude.use)?ARTIFACT_URL:location.href.split("#")[0]}
 function renderEval(){
   $("cfg-rows").innerHTML=CODES.map((code,i)=>{const u=UCS[code];return `<tr>
-    <td><span class="uc-code">${code}</span><br><span class="who">${esc(u.short)} · banco de ${u.items.length}</span></td>
+    <td><span class="uc-code">${code}</span><br><span class="who">${esc(u.short)} · banco de ${actQ(u).length}</span></td>
     <td><input type="checkbox" data-k="u" data-i="${i}" ${CFG.u[i]?"checked":""} aria-label="Activar ${code}"></td>
-    <td><input type="number" data-k="n" data-i="${i}" min="0" max="${u.items.length}" value="${CFG.n[i]}" aria-label="Número de preguntas ${code}"></td>
-    <td><select data-k="s" data-i="${i}" aria-label="Supuesto ${code}"><option value="0">Uno al azar</option><option value="8" ${CFG.s[i]===8?"selected":""}>Sin supuesto</option><option value="9" ${CFG.s[i]===9?"selected":""}>Todos (${u.sps.length})</option>${u.sps.map(s=>`<option value="${s.n}" ${CFG.s[i]===s.n?"selected":""}>Supuesto ${s.n}</option>`).join("")}</select></td></tr>`}).join("");
+    <td><input type="number" data-k="n" data-i="${i}" min="0" max="${actQ(u).length}" value="${CFG.n[i]}" aria-label="Número de preguntas ${code}"></td>
+    <td><select data-k="s" data-i="${i}" aria-label="Supuesto ${code}"><option value="0">Uno al azar</option><option value="8" ${CFG.s[i]===8?"selected":""}>Sin supuesto</option><option value="9" ${CFG.s[i]===9?"selected":""}>Todos (${actS(u).length})</option>${actS(u).filter(s=>s.n<=7).map(s=>`<option value="${s.n}" ${CFG.s[i]===s.n?"selected":""}>Supuesto ${s.n}</option>`).join("")}</select></td></tr>`}).join("");
   updLink();
-  $("bank").innerHTML=CODES.map(code=>{const u=UCS[code];return `<details><summary>${code} · ${u.items.length} preguntas</summary><div class="bank">${
-    u.items.map((it,j)=>`<div class="bank-i"><div><span class="q-n">B${String(j+1).padStart(2,"0")}</span> ${esc(it.q)}</div><ol>${it.o.map((o,x)=>`<li class="${x===it.k?"k":""}">${esc(o)}${x===it.k?" ✓":""}</li>`).join("")}</ol><div class="meta">${it.cr?"Referencia: "+esc(it.cr):""}${it.note?" · ⚠ "+esc(it.note):""}</div></div>`).join("")}</div></details>`}).join("");
-  $("sps").innerHTML=CODES.map(code=>UCS[code].sps.map(s=>`<details><summary>${code} · Supuesto ${s.n}</summary><div style="display:grid;gap:10px;margin-top:10px"><div class="case">${s.text.map(p=>`<p>${esc(p)}</p>`).join("")}</div><div class="refs"><h3 style="margin-bottom:6px">Respuestas a considerar como correctas por el evaluador</h3><ul>${s.ref.map(r=>`<li>${esc(r)}</li>`).join("")}</ul></div></div></details>`).join("")).join("");
+  renderBank();
 }
+function renderBank(){const open=new Set([...document.querySelectorAll("#bank details[open],#sps details[open]")].map(d=>d.dataset.key));
+  $("bank").innerHTML=CODES.map(code=>{const u=UCS[code];return `<details data-key="q-${code}" ${open.has("q-"+code)?"open":""}><summary>${code} · ${actQ(u).length} preguntas</summary><div class="bank">${
+    u.items.map((it,j)=>`<div class="bank-i${it.off?" off":""}" id="bq-${code}-${j}"><div><span class="q-n">B${String(j+1).padStart(2,"0")}</span> ${esc(it.q)}</div><ol>${it.o.map((o,x)=>`<li class="${x===it.k?"k":""}">${esc(o)}${x===it.k?" ✓":""}</li>`).join("")}</ol><div class="meta">${it.cr?"Referencia: "+esc(it.cr):""}${it.note?" · ⚠ "+esc(it.note):""}</div>
+      <div class="btns">${it.off?`<button type="button" class="ghost small" data-bq="restore" data-c="${code}" data-j="${j}">Recuperar</button>`:`<button type="button" class="ghost small" data-bq="edit" data-c="${code}" data-j="${j}">Editar</button><button type="button" class="ghost small danger" data-bq="del" data-c="${code}" data-j="${j}">Eliminar</button>`}</div></div>`).join("")}
+    <div class="bank-i" id="bq-${code}-new"><div class="btns"><button type="button" class="small" data-bq="add" data-c="${code}">Añadir pregunta</button></div></div></div></details>`}).join("");
+  $("sps").innerHTML=CODES.map(code=>{const u=UCS[code];return u.sps.map(s=>`<details data-key="s-${code}-${s.n}" ${open.has("s-"+code+"-"+s.n)?"open":""}><summary>${code} · Supuesto ${s.n}${s.off?" · eliminado":""}</summary><div style="display:grid;gap:10px;margin-top:10px" id="bs-${code}-${s.n}"><div class="case">${s.text.map(p=>`<p>${esc(p)}</p>`).join("")}</div><div class="refs"><h3 style="margin-bottom:6px">Respuestas a considerar como correctas por el evaluador</h3><ul>${s.ref.map(r=>`<li>${esc(r)}</li>`).join("")}</ul></div>
+      <div class="btns">${s.off?`<button type="button" class="ghost small" data-bs="restore" data-c="${code}" data-n="${s.n}">Recuperar</button>`:`<button type="button" class="ghost small" data-bs="edit" data-c="${code}" data-n="${s.n}">Editar</button><button type="button" class="ghost small danger" data-bs="del" data-c="${code}" data-n="${s.n}">Eliminar</button>`}</div></div></details>`).join("")+
+    `<div id="bs-${code}-new"><button type="button" class="small" data-bs="add" data-c="${code}">Añadir supuesto a ${code}</button></div>`}).join("");
+}
+function bankMsg(cls,t){const m=$("bank-msg");if(!t){m.hidden=true;return}m.className="msg "+cls;m.textContent=t;m.hidden=false}
+function qForm(code,j){const it=j==null?{q:"",o:["","",""],k:0,cr:""}:UCS[code].items[j];
+  return `<div class="ed" data-form="q" data-c="${code}" data-j="${j==null?"":j}"><label class="f">Pregunta<textarea data-f="q">${esc(it.q)}</textarea></label>
+    ${[0,1,2].map(x=>`<div class="opt-row"><input type="radio" name="ed-k" value="${x}" ${it.k===x?"checked":""} aria-label="Correcta ${L[x]}"><b>${L[x]})</b><input type="text" data-f="o${x}" value="${esc(it.o[x]||"")}"></div>`).join("")}
+    <span class="who">Marque el círculo de la opción correcta.</span>
+    <label class="f">Referencia <small>(opcional, p. ej. CR3.4)</small><input type="text" data-f="cr" value="${esc(it.cr||"")}"></label>
+    <div class="btns"><button type="button" data-save="q">Guardar</button><button type="button" class="ghost" data-cancel>Cancelar</button></div></div>`}
+function sForm(code,n){const s=n==null?{text:[],ref:[]}:UCS[code].sps.find(x=>x.n===n);
+  return `<div class="ed" data-form="s" data-c="${code}" data-n="${n==null?"":n}"><label class="f">Enunciado <small>(un párrafo por línea)</small><textarea data-f="text" style="min-height:140px">${esc(s.text.join("\n"))}</textarea></label>
+    <label class="f">Respuestas a considerar como correctas <small>(una actuación por línea; la valoración automática compara la respuesta con cada línea)</small><textarea data-f="ref" style="min-height:200px">${esc(s.ref.join("\n"))}</textarea></label>
+    <div class="btns"><button type="button" data-save="s">Guardar</button><button type="button" class="ghost" data-cancel>Cancelar</button></div></div>`}
+function closeForms(){document.querySelectorAll(".ed").forEach(f=>f.remove())}
+async function saveBank(okText){PAPER=null;
+  if(!canNet){bankMsg("warn","Cambio aplicado solo en esta pantalla: la edición del banco se guarda únicamente en la versión publicada en Render.");renderEval();return}
+  bankMsg("warn","Guardando en el servidor…");
+  const data=bankData(),want=JSON.stringify(data);
+  try{await post({id:"banco",action:"bank",key:EVK,bank:data});
+    for(let i=0;i<4;i++){await new Promise(r=>setTimeout(r,600));const r=await fetch(SERVER_URL+"?action=bank");const j=await r.json();
+      if(j&&j.ok&&JSON.stringify(j.bank)===want){bankMsg("ok",okText+" Guardado en el servidor. Conviene exportar el banco de vez en cuando como copia de seguridad.");setBankState(j.updated);renderEval();return}}
+    bankMsg("err","No se pudo confirmar el guardado en el servidor. Vuelva a intentarlo.")}
+  catch(e){bankMsg("err","No se puede contactar con el servidor. El cambio no se ha guardado.")}
+  renderEval()}
+function setBankState(ts){$("bank-state").textContent=ts?"Banco modificado · guardado "+new Date(ts).toLocaleString("es-ES",{dateStyle:"short",timeStyle:"short"}):"Banco original"}
+function linesOf(v){return String(v||"").split(/\n+/).map(x=>x.trim()).filter(Boolean)}
+document.addEventListener("click",async e=>{
+  const b=e.target.closest("button[data-bq],button[data-bs],button[data-save],button[data-cancel]");if(!b||$("s-eval").hidden)return;
+  if(b.hasAttribute("data-cancel")){closeForms();return}
+  if(b.dataset.bq){const code=b.dataset.c,j=b.dataset.j===undefined?null:+b.dataset.j,u=UCS[code],act=b.dataset.bq;
+    if(act==="edit"||act==="add"){closeForms();$(act==="add"?`bq-${code}-new`:`bq-${code}-${j}`).insertAdjacentHTML("beforeend",qForm(code,act==="add"?null:j));return}
+    if(act==="del"){if(actQ(u).length<=1){bankMsg("err","Debe quedar al menos una pregunta en cada ECP.");return}
+      if(!confirm(`¿Eliminar la pregunta B${String(j+1).padStart(2,"0")} de ${code}?\n\nDejará de salir en las pruebas nuevas. Puede recuperarla después.`))return;u.items[j].off=true;await saveBank("Pregunta eliminada.");return}
+    if(act==="restore"){delete u.items[j].off;await saveBank("Pregunta recuperada.");return}}
+  if(b.dataset.bs){const code=b.dataset.c,n=b.dataset.n===undefined?null:+b.dataset.n,u=UCS[code],act=b.dataset.bs;
+    if(act==="edit"||act==="add"){closeForms();$(act==="add"?`bs-${code}-new`:`bs-${code}-${n}`).insertAdjacentHTML("beforeend",sForm(code,act==="add"?null:n));return}
+    const sp=u.sps.find(x=>x.n===n);
+    if(act==="del"){if(!confirm(`¿Eliminar el supuesto práctico ${n} de ${code}?\n\nDejará de salir en las pruebas nuevas. Puede recuperarlo después.`))return;sp.off=true;await saveBank("Supuesto eliminado.");return}
+    if(act==="restore"){delete sp.off;await saveBank("Supuesto recuperado.");return}}
+  if(b.dataset.save){const f=b.closest(".ed"),code=f.dataset.c,u=UCS[code],g=k=>f.querySelector(`[data-f="${k}"]`).value.trim();
+    if(b.dataset.save==="q"){const q=g("q"),o=[g("o0"),g("o1"),g("o2")],kr=f.querySelector('input[name="ed-k"]:checked'),cr=g("cr");
+      if(!q||o.some(x=>!x)||!kr){bankMsg("err","Escriba la pregunta, las tres opciones y marque la correcta.");return}
+      const it={q,o,k:+kr.value};if(cr)it.cr=cr;
+      if(f.dataset.j===""){u.items.push(it);await saveBank(`Pregunta añadida a ${code} (B${String(u.items.length).padStart(2,"0")}).`)}
+      else{const j=+f.dataset.j;if(u.items[j].note&&u.items[j].q===q)it.note=u.items[j].note;u.items[j]=it;await saveBank("Pregunta modificada.")}return}
+    const text=linesOf(f.querySelector('[data-f="text"]').value),ref=linesOf(f.querySelector('[data-f="ref"]').value);
+    if(!text.length||!ref.length){bankMsg("err","Escriba el enunciado y al menos una respuesta de referencia.");return}
+    if(f.dataset.n===""){let n=Math.max(0,...u.sps.map(x=>x.n))+1;while(n===8||n===9)n++;u.sps.push({n,text,ref});await saveBank(`Supuesto práctico ${n} añadido a ${code}.`)}
+    else{const sp=u.sps.find(x=>x.n===+f.dataset.n);const refChanged=JSON.stringify(sp.ref)!==JSON.stringify(ref);sp.text=text;if(refChanged){sp.ref=ref;delete sp.kw;delete sp.err}await saveBank("Supuesto modificado.")}}
+});
+$("b-bank-exp").addEventListener("click",()=>{directSave(new Blob([JSON.stringify({app:"SEA029_2",exported:new Date().toISOString(),bank:bankData()},null,1)],{type:"application/json"}),`Banco_SEA029_2_${new Date().toISOString().slice(0,10)}.json`);bankMsg("ok","Banco exportado. Guarde el archivo como copia de seguridad.")});
+$("b-bank-imp").addEventListener("click",()=>$("f-bank-imp").click());
+$("f-bank-imp").addEventListener("change",async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;
+  try{const j=JSON.parse(await f.text());const b=j.bank||j;if(!CODES.every(c=>b[c]&&Array.isArray(b[c].items)&&Array.isArray(b[c].sps)&&b[c].items.every(it=>it.q&&Array.isArray(it.o)&&it.o.length===3&&it.k>=0&&it.k<3)))throw new Error("formato");
+    if(!confirm("¿Sustituir el banco actual por el del archivo?"))return;applyBank(b);await saveBank("Banco importado.")}
+  catch(err){bankMsg("err","El archivo no es un banco válido de esta aplicación.")}});
+$("b-bank-reset").addEventListener("click",async()=>{if(!confirm("¿Restaurar el banco original de la aplicación?\n\nSe perderán todas las preguntas y supuestos añadidos o modificados. Exporte antes el banco si quiere conservarlos."))return;
+  applyBank(JSON.parse(ORIG_BANK));PAPER=null;
+  if(!canNet){renderEval();bankMsg("ok","Banco original restaurado.");return}
+  try{await post({id:"banco",action:"bank",key:EVK,bank:null});await new Promise(r=>setTimeout(r,800));setBankState(null);bankMsg("ok","Banco original restaurado.")}catch(e){bankMsg("err","No se puede contactar con el servidor.")}
+  renderEval()});
 $("cfg-rows").addEventListener("change",e=>{
   const t=e.target,k=t.dataset.k,i=+t.dataset.i;if(!k)return;
   if(k==="u"){CFG.u[i]=t.checked?1:0;if(!CFG.u.some(Boolean)){CFG.u[i]=1;t.checked=true;flashCfg("err","Debe quedar al menos una UC activa.")}}
   const prev={n:CFG.n[i],s:CFG.s[i]};
-  if(k==="n"){const max=UCS[CODES[i]].items.length;let v=Math.round(+t.value||0);v=Math.max(0,Math.min(max,v));t.value=v;CFG.n[i]=v}
+  if(k==="n"){const max=actQ(UCS[CODES[i]]).length;let v=Math.round(+t.value||0);v=Math.max(0,Math.min(max,v));t.value=v;CFG.n[i]=v}
   if(k==="s"){CFG.s[i]=+t.value}
   if(!hasContent(CFG)){CFG.n[i]=prev.n;CFG.s[i]=prev.s;renderEval();flashCfg("err","La prueba debe incluir al menos un test o un supuesto práctico.");return}
   if(CFG.u[i]&&CFG.n[i]===0&&CFG.s[i]===8)flashCfg("warn",`${CODES[i]} queda sin test y sin supuesto: el candidato/a no la realizará.`);else $("cfg-msg").hidden=true;
@@ -435,7 +516,7 @@ function docxFile(body,footer){
     ["word/document.xml",doc],["word/styles.xml",styles],["word/footer1.xml",ftr]])}
 let PAPER=null;
 function paperSel(){if(PAPER&&PAPER.code===encode(CFG))return PAPER;
-  const parts=CODES.map((uc,i)=>{if(!ucOn(CFG,i))return null;const u=UCS[uc];return {uc,qids:sample(u.items.length,CFG.n[i]),sps:spList(u,CFG.s[i])}}).filter(Boolean);
+  const parts=CODES.map((uc,i)=>{if(!ucOn(CFG,i))return null;const u=UCS[uc];return {uc,qids:sampleFrom(actQ(u),CFG.n[i]),sps:spList(u,CFG.s[i])}}).filter(Boolean);
   PAPER={code:encode(CFG),model:Math.random().toString(36).slice(2,6).toUpperCase(),parts};return PAPER}
 function paperHead(t,P){return wp(wr("ACREDITACIÓN DE COMPETENCIAS PROFESIONALES",{sz:8,c:"FFFFFF"}),{fill:W_NAVY,after:0,before:0})+
   wp(wr(t,{sz:16,b:true,c:"FFFFFF"}),{fill:W_NAVY,after:0})+
@@ -447,7 +528,7 @@ function paperDoc(P){let b=paperHead("Prueba de evaluación",P);
   b+=wp(wr("Marque con una X una sola respuesta en cada pregunta del test. Responda a cada supuesto práctico en el espacio indicado; si necesita más espacio, use hojas adicionales indicando el ECP y el número de supuesto.",{sz:9.5,c:"4A5560",i:true}),{before:160,after:120,jc:"both"});
   P.parts.forEach((p,pi)=>{const u=UCS[p.uc];b+=wuc(p.uc,pi===0);
     if(p.qids.length){b+=wsec(`Parte A · Test (${p.qids.length} preguntas)`);
-      p.qids.forEach((qi,n)=>{const it=u.items[qi];b+=wp([wr(`${n+1}. `,{b:true,c:W_NAVY}),wr(it.q,{b:true})],{keep:true,after:60,before:80});
+      p.qids.forEach((qi,n)=>{const it=QI(u,qi);b+=wp([wr(`${n+1}. `,{b:true,c:W_NAVY}),wr(it.q,{b:true})],{keep:true,after:60,before:80});
         const ord=p.order&&p.order[n]?p.order[n]:it.o.map((_,i)=>i);ord.forEach((oi,pos)=>{b+=wp([wr("☐  "),wr(`${L[pos]}) `,{b:true}),wr(it.o[oi])],{ind:360,after:30,keep:pos<ord.length-1})})})}
     else b+=wp(wr("Sin test en este ECP.",{i:true,c:"60696F"}));
     p.sps.forEach(n=>{const sp=spOf(p.uc,n);b+=wsec(`Parte B · Supuesto práctico ${n}`);
@@ -461,7 +542,7 @@ function keyDoc(P){let b=paperHead("Clave de corrección",P);
   b+=wp(wr(P.cand?`Documento solo para el evaluador/a. Corresponde a la prueba de ${P.cand.name||"el candidato/a"}${P.cand.dni?" ("+P.cand.dni+")":""}, con el mismo orden de preguntas y opciones.`:"Documento solo para el evaluador/a. Corresponde a la prueba en papel del mismo modelo.",{sz:9.5,c:"4A5560",i:true}),{after:120});
   P.parts.forEach((p,pi)=>{const u=UCS[p.uc];b+=wuc(p.uc,pi===0);
     if(p.qids.length){b+=wsec(`Parte A · Test (${p.qids.length} preguntas)`);
-      p.qids.forEach((qi,n)=>{const it=u.items[qi];b+=wp([wr(`${n+1}. `,{b:true,c:W_NAVY}),wr(it.q)],{after:30,keep:true});
+      p.qids.forEach((qi,n)=>{const it=QI(u,qi);b+=wp([wr(`${n+1}. `,{b:true,c:W_NAVY}),wr(it.q)],{after:30,keep:true});
         const ord=p.order&&p.order[n]?p.order[n]:it.o.map((_,i)=>i);b+=wp([wr("Respuesta correcta: ",{b:true,c:"1E6E3C"}),wr(`${L[ord.indexOf(it.k)]}) ${it.o[it.k]}`)],{ind:360,after:100})})}
     else b+=wp(wr("Sin test en este ECP.",{i:true,c:"60696F"}));
     p.sps.forEach(n=>{const sp=spOf(p.uc,n);b+=wsec(`Parte B · Supuesto práctico ${n} · Respuestas a considerar como correctas`);
@@ -486,8 +567,8 @@ $("b-paper-key").addEventListener("click",()=>{const r=paperPick();if(!r)return;
 $("b-paper-new").addEventListener("click",()=>{PAPER=null;const P=paperSel();paperMsg("ok",`Nueva selección de preguntas y supuestos: modelo ${P.model}. Descargue la prueba y su corrección.`)});
 
 /* ---------- DATOS DEL CANDIDATO ---------- */
-function spList(u,s){if(s===8)return [];return s===9?u.sps.map(x=>x.n):[s||u.sps[Math.floor(Math.random()*u.sps.length)].n]}
-function spLabel(u,s){return s===8?"sin supuesto práctico":(s===9?`${u.sps.length} supuestos prácticos`:(s?`supuesto práctico ${s}`:"1 supuesto práctico"))}
+function spList(u,s){const A=actS(u);if(s===8||!A.length)return [];return s===9?A.map(x=>x.n):[A.some(x=>x.n===s)?s:A[Math.floor(Math.random()*A.length)].n]}
+function spLabel(u,s){return s===8?"sin supuesto práctico":(s===9?`${actS(u).length} supuestos prácticos`:(s?`supuesto práctico ${s}`:"1 supuesto práctico"))}
 function partLabel(c,i){const u=UCS[CODES[i]];return [c.n[i]?`${c.n[i]} preguntas de test`:"sin test",spLabel(u,c.s[i])].join(" + ")}
 function renderStart(){
   $("c-code").value=encode(CFG);
@@ -496,7 +577,7 @@ function renderStart(){
     <span class="uc-meta" style="grid-column:1">${esc(u.short)} · ${partLabel(CFG,i)}</span></div>`}).join("");
 }
 $("c-code").addEventListener("change",()=>{const c=decode($("c-code").value);if(c){CFG=c;renderStart();$("start-err").hidden=true}else{$("start-err").textContent="El código de la prueba no es válido. Compruébelo con el evaluador/a.";$("start-err").hidden=false}});
-$("f-start").addEventListener("submit",e=>{
+$("f-start").addEventListener("submit",async e=>{e.preventDefault();if(BANKP)await BANKP;
   e.preventDefault();
   const name=$("c-name").value.trim(),dni=$("c-dni").value.trim(),err=[];
   const typed=decode($("c-code").value);if(typed)CFG=typed;else err.push("revise el código de la prueba");
@@ -506,8 +587,8 @@ $("f-start").addEventListener("submit",e=>{
   if(!$("c-decl").checked)err.push("marque la declaración de realización personal");
   if(err.length){$("start-err").textContent="Para comenzar, "+err.join(", ")+".";$("start-err").hidden=false;return}
   $("start-err").hidden=true;
-  const parts=CODES.map((uc,i)=>{if(!ucOn(CFG,i))return null;const u=UCS[uc];const qids=sample(u.items.length,CFG.n[i]);const sps=spList(u,CFG.s[i]);
-    return {uc,qids,order:qids.map(q=>sample(u.items[q].o.length,u.items[q].o.length)),ans:qids.map(()=>null),sps,texts:sps.map(()=>"")}}).filter(Boolean);
+  const parts=CODES.map((uc,i)=>{if(!ucOn(CFG,i))return null;const u=UCS[uc];const qids=sampleFrom(actQ(u),CFG.n[i]);const sps=spList(u,CFG.s[i]);
+    return {uc,qids,order:qids.map(q=>sample(QI(u,q).o.length,QI(u,q).o.length)),ans:qids.map(()=>null),sps,texts:sps.map(()=>"")}}).filter(Boolean);
   S={id:uid(),name,dni,email,place:$("c-place").value.trim(),code:encode(CFG),start:Date.now(),end:null,parts,done:false};
   save();showExam();startHeartbeat();
 });
@@ -517,7 +598,7 @@ let S=null;
 function save(){if(S)store.set(LS,JSON.stringify(S))}
 function normPl(pl){if(pl&&Array.isArray(pl.parts))pl.parts.forEach(p=>{p.uc=String(p.uc).replace(/^UC/,"ECP")});return pl}
 function load(){try{const r=store.get(LS);return r?normPl(JSON.parse(r)):null}catch(e){return null}}
-function spOf(uc,n){return UCS[uc].sps.find(s=>s.n===n)}
+function spOf(uc,n){return UCS[uc].sps.find(s=>s.n===n)||{n,text:["(supuesto eliminado del banco)"],ref:[]}}
 function showExam(){
   show("s-exam");
   $("exam-who").innerHTML=`<b>${esc(S.name)}</b> · ${esc(S.dni)} · ${S.parts.map(p=>`<span class="uc-code">${p.uc}</span>`).join(" ")}`;
@@ -525,7 +606,7 @@ function showExam(){
     return `<div class="uc-head"><span class="eyebrow">ECP ${pi+1} de ${S.parts.length}</span><h2><span class="uc-code" style="font-size:inherit">${p.uc}</span> · ${esc(u.title)}</h2></div>
     `+(p.qids.length?`<div class="card"><div class="block-h"><h2>Parte A · Test</h2><span class="tag">${p.qids.length} preguntas · ${p.qids.length} puntos</span></div>
       <p class="sub">Una sola respuesta correcta por pregunta. Cada pregunta vale 1 punto; los errores no restan. Si no sabe la respuesta, puede dejarla en blanco: no puntúa.</p><div>`+
-      p.qids.map((qi,n)=>{const it=u.items[qi];return `<fieldset class="q"><div class="q-h"><span class="q-n">${String(n+1).padStart(2,"0")}</span><legend>${esc(it.q)}</legend><span class="q-p">1 punto</span></div><div class="opts">`+
+      p.qids.map((qi,n)=>{const it=QI(u,qi);return `<fieldset class="q"><div class="q-h"><span class="q-n">${String(n+1).padStart(2,"0")}</span><legend>${esc(it.q)}</legend><span class="q-p">1 punto</span></div><div class="opts">`+
         p.order[n].map((oi,pos)=>`<label class="opt"><input type="radio" name="q${pi}_${n}" value="${oi}" ${p.ans[n]===oi?"checked":""}><span class="l">${L[pos]})</span><span>${esc(it.o[oi])}</span></label>`).join("")+`</div><div><button type="button" class="clear" data-clear="${pi}_${n}" ${p.ans[n]===null?"disabled":""}>Dejar en blanco</button></div></fieldset>`}).join("")+
     `</div></div>`:"")+
     p.sps.map((n,si)=>{const sp=spOf(p.uc,n);return `<div class="card"><div class="block-h"><h2>Parte B · Supuesto práctico ${n}</h2><span class="tag">${p.uc} · respuesta libre</span></div>
@@ -554,7 +635,7 @@ $("b-send").addEventListener("click",()=>{S.done=true;S.end=Date.now();save();sh
 const LAB={ok:"Correcta",bad:"Incorrecta",na:"Sin respuesta"};
 function compute(p){
   const u=UCS[p.uc];let ok=0;
-  const rows=p.qids.map((qi,n)=>{const it=u.items[qi],a=p.ans[n],good=a!==null&&a===it.k;if(good)ok++;
+  const rows=p.qids.map((qi,n)=>{const it=QI(u,qi),a=p.ans[n],good=a!==null&&a===it.k;if(good)ok++;
     return {n:n+1,b:qi+1,q:it.q,a:a===null?null:`${L[p.order[n].indexOf(a)]}) ${it.o[a]}`,c:`${L[p.order[n].indexOf(it.k)]}) ${it.o[it.k]}`,st:a===null?"na":(good?"ok":"bad")}});
   return {ok,tot:p.qids.length,grade:p.qids.length?ok/p.qids.length*10:null,rows};
 }
@@ -562,7 +643,7 @@ function hasVal(){return !!S.val}
 function valSpTxt(p,n){return S.val&&S.val[p.uc]?S.val[p.uc][n]||"":""}
 const NOSP=". No se realiza supuesto práctico.";
 function valParas(x){return String(x).split("\n").filter(Boolean).map(s=>`<p class="r-val">${esc(s)}</p>`).join("")}
-function spInfo(p){const all=UCS[p.uc].sps.map(s=>s.n),done=p.sps.slice().sort((a,b)=>a-b),no=all.filter(n=>!done.includes(n));
+function spInfo(p){const all=actS(UCS[p.uc]).map(s=>s.n),done=p.sps.slice().sort((a,b)=>a-b),no=all.filter(n=>!done.includes(n));
   const f=a=>a.length?a.map(n=>"Supuesto "+n).join(", "):"Ninguno";
   return {done:done.length?f(done):"No se realiza supuesto práctico",no:f(no)}}
 function valNote(){return hasVal()?"Cada ECP queda DEMOSTRADO con nota igual o superior a 5.":"Los supuestos prácticos los valora el evaluador/a. Cada ECP queda DEMOSTRADO con nota igual o superior a 5."}
@@ -825,11 +906,15 @@ function normMap(s){s=String(s||"");let o="";for(let i=0;i<s.length;i++){let c=s
 function quoteAt(orig,norm,i,len){let e=i+len;while(e<norm.length&&/[a-z0-9]/.test(norm[e]))e++;return orig.slice(i,e).trim()}
 function evid(orig,norm,groups){const q=[];groups.forEach(g=>{for(const st of g){const m=new RegExp("(^|[^a-z0-9])"+reEsc(st)).exec(norm);if(m){const w=quoteAt(orig,norm,m.index+m[1].length,st.length);if(w&&!q.some(x=>x.toLowerCase()===w.toLowerCase()))q.push(w);break}}});return q.slice(0,3)}
 function errQuote(orig,norm,pats){for(const p of pats){const re=new RegExp("(^|[^a-z0-9])"+reEsc(p),"g");let m;while((m=re.exec(norm))){const k=m.index+m[1].length;if(!negated(norm,k))return quoteAt(orig,norm,k,p.length)}}return null}
+const KW_STOP=new Set("debera debería deberia ademas además cualquier mediante siempre tambien también siendo durante cuando dentro sobre contra desde hasta entre puede pueden donde aquellos aquellas estos estas ellos ellas todos todas otras otros nuestro nuestra".split(" ").map(w=>normMap(w)));
+function autoKw(sp){return (sp.ref||[]).map(r=>{const st=[];normMap(r).split(/[^a-z0-9]+/).forEach(w=>{if(w.length>=6&&!KW_STOP.has(w)){const s=w.slice(0,6);if(!st.includes(s))st.push(s)}});
+  const g=st.slice(0,8).map(s=>[s]);let t=r.split(/[.;:](\s|$)/)[0].trim();if(t.length>130)t=t.slice(0,127).replace(/\s+\S*$/,"")+"…";t=t.charAt(0).toLowerCase()+t.slice(1);
+  return {t,g,m:Math.max(1,Math.min(3,Math.ceil(g.length*0.35)))}}).filter(c=>c.g.length)}
 function valSp(sp,ans){
   const orig=String(ans||"");
   if(!orig.trim())return `Supuesto práctico ${sp.n}. El candidato/a no responde al supuesto, por lo que no recoge ninguna de las actuaciones de referencia.`;
   const norm=normMap(orig),ok=[],ko=[];
-  (sp.kw||[]).forEach(c=>{const hit=c.g.filter(g=>g.some(st=>hasStem(norm,st))).length;if(hit>=c.m)ok.push({t:c.t,q:evid(orig,norm,c.g)});else ko.push(c.t)});
+  (sp.kw&&sp.kw.length?sp.kw:autoKw(sp)).forEach(c=>{const hit=c.g.filter(g=>g.some(st=>hasStem(norm,st))).length;if(hit>=c.m)ok.push({t:c.t,q:evid(orig,norm,c.g)});else ko.push(c.t)});
   const er=[];(sp.err||[]).forEach(e=>{const q=errQuote(orig,norm,e.p);if(q)er.push({t:e.t,q})});
   const tot=ok.length+ko.length,pct=tot?Math.round(ok.length/tot*100):0;
   const glob=pct>=80?"En conjunto, la respuesta se ajusta en lo esencial a las respuestas de referencia.":pct>=50?"En conjunto, la respuesta se ajusta parcialmente a las respuestas de referencia.":"En conjunto, la respuesta se aleja de forma significativa de las respuestas de referencia.";
@@ -860,6 +945,8 @@ $("trk-rows").addEventListener("click",async e=>{const b=e.target.closest("butto
 const prev=load();
 if(prev&&Array.isArray(prev.parts)&&prev.parts.every(p=>UCS[p.uc])){S=prev;if(!S.id)S.id=uid();if(S.done){showReport();deliver()}else{showExam();startHeartbeat()}}
 else show("s-gate");
+/* ---------- BANCO EDITADO EN EL SERVIDOR ---------- */
+var BANKP=canNet?fetch(SERVER_URL+"?action=bank").then(r=>r.json()).then(j=>{if(j&&j.ok&&j.bank&&applyBank(j.bank)){setBankState(j.updated);if(!$("s-eval").hidden)renderEval()}else setBankState(null)}).catch(()=>{}):null;
 })();
 </script>
 </body></html>
