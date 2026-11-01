@@ -438,12 +438,12 @@ function paperHead(t,P){return wp(wr("ACREDITACIÓN DE COMPETENCIAS PROFESIONALE
 function wsec(t){return wp(wr(t,{sz:10,b:true,c:W_NAVY,caps:true}),{bb:W_NAVY,bbsz:8,before:200,after:140,keep:true})}
 function wuc(uc,first){return wp([wr(uc+"  ",{sz:13,b:true,c:W_NAVY}),wr(UCS[uc].title,{sz:11,b:true})],{fill:"E9EFF6",before:first?120:0,after:160,pb:!first,keep:true})}
 function paperDoc(P){let b=paperHead("Prueba de evaluación",P);
-  b+=wsec("Datos del candidato/a")+wtable([["Apellidos y nombre",""],["DNI / NIE / Pasaporte",""],["Email",""],["Lugar y fecha",""]],3000);
+  const cd=P.cand||{};b+=wsec("Datos del candidato/a")+wtable([["Apellidos y nombre",cd.name||""],["DNI / NIE / Pasaporte",cd.dni||""],["Email",cd.email||""],["Lugar y fecha",""]],3000);
   b+=wp(wr("Marque con una X una sola respuesta en cada pregunta del test. Responda a cada supuesto práctico en el espacio indicado; si necesita más espacio, use hojas adicionales indicando el ECP y el número de supuesto.",{sz:9.5,c:"4A5560",i:true}),{before:160,after:120,jc:"both"});
   P.parts.forEach((p,pi)=>{const u=UCS[p.uc];b+=wuc(p.uc,pi===0);
     if(p.qids.length){b+=wsec(`Parte A · Test (${p.qids.length} preguntas)`);
       p.qids.forEach((qi,n)=>{const it=u.items[qi];b+=wp([wr(`${n+1}. `,{b:true,c:W_NAVY}),wr(it.q,{b:true})],{keep:true,after:60,before:80});
-        it.o.forEach((o,oi)=>{b+=wp([wr("☐  "),wr(`${L[oi]}) `,{b:true}),wr(o)],{ind:360,after:30,keep:oi<it.o.length-1})})})}
+        const ord=p.order&&p.order[n]?p.order[n]:it.o.map((_,i)=>i);ord.forEach((oi,pos)=>{b+=wp([wr("☐  "),wr(`${L[pos]}) `,{b:true}),wr(it.o[oi])],{ind:360,after:30,keep:pos<ord.length-1})})})}
     else b+=wp(wr("Sin test en este ECP.",{i:true,c:"60696F"}));
     p.sps.forEach(n=>{const sp=spOf(p.uc,n);b+=wsec(`Parte B · Supuesto práctico ${n}`);
       sp.text.forEach(x=>{b+=wp(x,{jc:"both",after:100})});
@@ -453,11 +453,11 @@ function paperDoc(P){let b=paperHead("Prueba de evaluación",P);
   b+=wp(" ",{before:600,after:0})+wp(wr("Firma del candidato/a",{sz:9,c:"60696F"}),{jc:"right",after:0});
   return docxFile(b,`Prueba de evaluación SEA029_2 · Modelo ${P.model}`)}
 function keyDoc(P){let b=paperHead("Clave de corrección",P);
-  b+=wp(wr("Documento solo para el evaluador/a. Corresponde a la prueba en papel del mismo modelo.",{sz:9.5,c:"4A5560",i:true}),{after:120});
+  b+=wp(wr(P.cand?`Documento solo para el evaluador/a. Corresponde a la prueba de ${P.cand.name||"el candidato/a"}${P.cand.dni?" ("+P.cand.dni+")":""}, con el mismo orden de preguntas y opciones.`:"Documento solo para el evaluador/a. Corresponde a la prueba en papel del mismo modelo.",{sz:9.5,c:"4A5560",i:true}),{after:120});
   P.parts.forEach((p,pi)=>{const u=UCS[p.uc];b+=wuc(p.uc,pi===0);
     if(p.qids.length){b+=wsec(`Parte A · Test (${p.qids.length} preguntas)`);
       p.qids.forEach((qi,n)=>{const it=u.items[qi];b+=wp([wr(`${n+1}. `,{b:true,c:W_NAVY}),wr(it.q)],{after:30,keep:true});
-        b+=wp([wr("Respuesta correcta: ",{b:true,c:"1E6E3C"}),wr(`${L[it.k]}) ${it.o[it.k]}`)],{ind:360,after:100})})}
+        const ord=p.order&&p.order[n]?p.order[n]:it.o.map((_,i)=>i);b+=wp([wr("Respuesta correcta: ",{b:true,c:"1E6E3C"}),wr(`${L[ord.indexOf(it.k)]}) ${it.o[it.k]}`)],{ind:360,after:100})})}
     else b+=wp(wr("Sin test en este ECP.",{i:true,c:"60696F"}));
     p.sps.forEach(n=>{const sp=spOf(p.uc,n);b+=wsec(`Parte B · Supuesto práctico ${n} · Respuestas a considerar como correctas`);
       sp.ref.forEach(r=>{b+=wp([wr("•  ",{b:true,c:W_NAVY}),wr(r)],{ind:360,jc:"both",after:80})})});
@@ -465,9 +465,18 @@ function keyDoc(P){let b=paperHead("Clave de corrección",P);
   b+=wp(" ",{before:600,after:0})+wp(wr("Firma del evaluador/a",{sz:9,c:"60696F"}),{jc:"right",after:0})+(EVN?wp(wr(EVN,{b:true,sz:10}),{jc:"right",after:0}):"");
   return docxFile(b,`Clave de corrección SEA029_2 · Modelo ${P.model}`)}
 function paperMsg(cls,t){const m=$("paper-msg");m.className="msg "+cls;m.textContent=t;m.hidden=false}
-$("b-paper").addEventListener("click",()=>{const P=paperSel();directSave(paperDoc(P),`Prueba_SEA029_2_Modelo_${P.model}.docx`);
+function candPaper(x){const s=x.sel;return {code:s.code||"",model:String(x.id||"").slice(-4).toUpperCase(),cand:{name:x.name,dni:x.dni},parts:s.parts.filter(p=>UCS[p.uc])}}
+function candFile(x,k){return `${k}_SEA029_2_${String(x.dni||"").replace(/[^0-9A-Za-z]/g,"").toUpperCase()||x.id}.docx`}
+function liveCands(){return trkItems.filter(x=>x.status!=="entregada"&&x.sel&&x.sel.parts)}
+function paperPick(){const lc=liveCands();if(lc.length>1){paperMsg("warn",`Hay ${lc.length} candidatos haciendo la prueba. Descargue la de cada uno con su botón «Prueba (.docx)» en Seguimiento de candidatos.`);return null}
+  return lc.length?{x:lc[0]}:{P:paperSel()}}
+$("b-paper").addEventListener("click",()=>{const r=paperPick();if(!r)return;
+  if(r.x){directSave(paperDoc(candPaper(r.x)),candFile(r.x,"Prueba"));paperMsg("ok",`Descargada la prueba que está realizando ${r.x.name} (mismas preguntas, supuestos y orden de opciones, sin sus respuestas).`);return}
+  const P=r.P;directSave(paperDoc(P),`Prueba_SEA029_2_Modelo_${P.model}.docx`);
   paperMsg("ok",`Prueba descargada (modelo ${P.model}). Descargue también la corrección de este mismo modelo.`)});
-$("b-paper-key").addEventListener("click",()=>{const P=paperSel();directSave(keyDoc(P),`Clave_SEA029_2_Modelo_${P.model}.docx`);
+$("b-paper-key").addEventListener("click",()=>{const r=paperPick();if(!r)return;
+  if(r.x){directSave(keyDoc(candPaper(r.x)),candFile(r.x,"Correccion"));paperMsg("ok",`Descargada la corrección de la prueba de ${r.x.name}.`);return}
+  const P=r.P;directSave(keyDoc(P),`Clave_SEA029_2_Modelo_${P.model}.docx`);
   paperMsg("ok",`Corrección descargada (modelo ${P.model}).`)});
 $("b-paper-new").addEventListener("click",()=>{PAPER=null;const P=paperSel();paperMsg("ok",`Nueva selección de preguntas y supuestos: modelo ${P.model}. Descargue la prueba y su corrección.`)});
 
@@ -728,7 +737,8 @@ function post(body){if(!canNet)return Promise.reject(new Error("sin servidor"));
   return fetch(SERVER_URL,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(body)})}
 let hbTimer=null,lastHb="";
 function heartbeat(force){if(!S||S.done||!canNet)return;const pr=progressText();if(!force&&pr===lastHb&&hbTimer)return;lastHb=pr;
-  post({id:S.id,name:S.name,dni:S.dni,start:S.start,status:"en curso",progress:pr}).catch(()=>{})}
+  post({id:S.id,name:S.name,dni:S.dni,start:S.start,status:"en curso",progress:pr,sel:selOf()}).catch(()=>{})}
+function selOf(){return {code:S.code,parts:S.parts.map(p=>({uc:p.uc,qids:p.qids,order:p.order,sps:p.sps}))}}
 function startHeartbeat(){if(hbTimer||!canNet)return;heartbeat(true);hbTimer=setInterval(()=>heartbeat(true),30000)}
 let hbDeb=null;function hbSoon(){clearTimeout(hbDeb);hbDeb=setTimeout(()=>heartbeat(false),3000)}
 async function ack(){try{const r=await fetch(SERVER_URL+"?action=ack&id="+encodeURIComponent(S.id));const j=await r.json();return j&&j.status==="entregada"}catch(e){return false}}
@@ -770,7 +780,11 @@ function renderTrack(){
   $("trk-rows").innerHTML=trkItems.map((x,i)=>{const done=x.status==="entregada",live=!done&&Date.now()-x.updated<90000;
     const st=done?`<span class="pill ok">Entregada</span>`:(live?`<span class="pill na">En curso · conectado</span>`:`<span class="pill bad">En curso · sin señal</span>`);
     return `<tr><td><b>${esc(x.name)}</b><br><span class="who">${esc(x.dni)}</span></td><td>${st}</td><td class="who">${esc(x.progress||"")}</td><td class="who">${x.start?(done&&x.end?durMs(x.end-x.start):durMs(Date.now()-x.start)+" (en curso)"):"-"}</td><td class="who">${ago(x.updated)}</td>
-      <td><div class="btns">${done?`<button type="button" data-get="${i}" data-fmt="pdf">PDF</button><button type="button" class="alt" data-get="${i}" data-fmt="zip">PDF (ECP)</button>`:""}<button type="button" class="ghost danger" data-del="${i}">Eliminar</button></div></td></tr>`}).join("")}
+      <td><div class="btns">${done?`<button type="button" data-get="${i}" data-fmt="pdf">PDF</button><button type="button" class="alt" data-get="${i}" data-fmt="zip">PDF (ECP)</button>`:""}${x.sel&&x.sel.parts?`<button type="button" class="ghost" data-paper="${i}">Prueba (.docx)</button><button type="button" class="ghost" data-pkey="${i}">Corrección (.docx)</button>`:""}<button type="button" class="ghost danger" data-del="${i}">Eliminar</button></div></td></tr>`}).join("")}
+$("trk-rows").addEventListener("click",e=>{const b=e.target.closest("button[data-paper],button[data-pkey]");if(!b)return;
+  const x=trkItems[+(b.dataset.paper??b.dataset.pkey)];if(!x||!x.sel)return;
+  if(b.dataset.paper!==undefined){directSave(paperDoc(candPaper(x)),candFile(x,"Prueba"));trkMsg("ok",`Descargada la prueba de ${x.name} sin respuestas.`)}
+  else{directSave(keyDoc(candPaper(x)),candFile(x,"Correccion"));trkMsg("ok",`Descargada la corrección de la prueba de ${x.name}.`)}});
 $("trk-rows").addEventListener("click",async e=>{const d=e.target.closest("button[data-del]");if(!d)return;const x=trkItems[+d.dataset.del];
   const live=x.status!=="entregada"&&Date.now()-x.updated<90000;
   if(!confirm(`¿Eliminar del servidor la prueba de ${x.name||"(sin nombre)"}${x.dni?" ("+x.dni+")":""}?${live?"\n\nAtención: este candidato/a sigue conectado; si continúa, volverá a aparecer.":""}\n\nEsta acción no se puede deshacer. Descargue antes el informe si lo necesita.`))return;

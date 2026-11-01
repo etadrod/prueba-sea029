@@ -82,7 +82,7 @@ function json(res, o, codigo) {
 }
 
 function resumen(r) {
-  return { id: r.id, name: r.name, dni: r.dni, status: r.status, progress: r.progress, updated: r.updated, start: r.start, end: r.end };
+  return { id: r.id, name: r.name, dni: r.dni, status: r.status, progress: r.progress, updated: r.updated, start: r.start, end: r.end, sel: r.sel || null };
 }
 
 async function recibir(req, res) {
@@ -116,6 +116,8 @@ async function recibir(req, res) {
         start: Number(d.start) || (previo ? previo.start : null) || null,
         end: Number(d.end) || (previo ? previo.end : null) || null,
         payload: d.payload || (previo ? previo.payload : null),
+        // Selección de preguntas, supuestos y orden de opciones (sin respuestas) para la prueba en papel.
+        sel: (d.sel && JSON.stringify(d.sel).length < 50000) ? d.sel : (previo ? previo.sel || null : null),
       };
       await guardar(reg);
       json(res, { ok: true });
