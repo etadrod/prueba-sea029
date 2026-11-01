@@ -746,7 +746,7 @@ function heartbeat(force){if(!S||S.done||!canNet)return;const pr=progressText(),
 function liveOf(){return {code:S.code,email:S.email,place:S.place,parts:S.parts.map(p=>({uc:p.uc,qids:p.qids,order:p.order,ans:p.ans,sps:p.sps,texts:p.texts}))}}
 function selOf(){return {code:S.code,parts:S.parts.map(p=>({uc:p.uc,qids:p.qids,order:p.order,sps:p.sps}))}}
 function startHeartbeat(){if(hbTimer||!canNet)return;heartbeat(true);hbTimer=setInterval(()=>heartbeat(true),15000)}
-let hbDeb=null;function hbSoon(){clearTimeout(hbDeb);hbDeb=setTimeout(()=>heartbeat(false),3000)}
+let hbDeb=null;function hbSoon(){clearTimeout(hbDeb);hbDeb=setTimeout(()=>heartbeat(false),1500)}
 async function ack(){try{const r=await fetch(SERVER_URL+"?action=ack&id="+encodeURIComponent(S.id));const j=await r.json();return j&&j.status==="entregada"}catch(e){return false}}
 function setSendMsg(){const m=$("send-msg");
   if(!canNet){m.className="msg warn";m.textContent="Prueba finalizada. Este equipo no está conectado al servidor del evaluador: avise al evaluador/a.";$("b-copy").hidden=false;return}
@@ -791,7 +791,7 @@ let LIVE=null,liveTimer=null;
 function liveStop(){LIVE=null;clearInterval(liveTimer);liveTimer=null;$("live-card").hidden=true}
 async function liveLoad(){if(!LIVE)return;const id=LIVE.id;
   try{const r=await fetch(SERVER_URL+"?action=get&id="+encodeURIComponent(id)+"&key="+encodeURIComponent(EVK));const j=await r.json();if(!LIVE||LIVE.id!==id)return;
-    const src=j.payload||j.live;if(!j.ok||!src||!src.parts){$("live-state").textContent="Sin datos todavía";$("live-body").innerHTML=`<p class="who">El candidato/a aún no ha enviado respuestas. Se mostrarán en cuanto conteste.</p>`;return}
+    const src=j.payload||j.live;if(!j.ok||!src||!src.parts){$("live-state").textContent="Sin datos todavía";$("live-body").innerHTML=`<div class="msg warn">No llegan las respuestas de este candidato/a. Si empezó la prueba antes de la última actualización de la aplicación, su página es la versión anterior: pídale que recargue la página (F5) y vuelva a pulsar «Entrar como candidato/a». Conserva todas sus respuestas y desde ese momento las verá aquí en directo.</div>`;return}
     normPl(src);const keep=S;S=Object.assign({},src,{name:LIVE.name,dni:LIVE.dni,start:LIVE.start});
     try{const sc=window.scrollY;$("live-body").innerHTML=reportHTML(true);window.scrollTo(0,sc)}finally{S=keep}
     const done=j.status==="entregada";$("live-state").textContent=(done?"Entregada · ":"En curso · ")+"actualizado "+new Date().toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
