@@ -221,6 +221,11 @@ footer{font-size:12px;color:var(--muted)}
       </table></div>
       <div id="trk-msg" class="msg" hidden></div>
     </div>
+    <div class="card" id="live-card" hidden>
+      <div class="block-h"><h2 id="live-h">Prueba en directo</h2><div class="top-tools"><span class="tag" id="live-state"></span><button type="button" id="b-live-close" class="ghost small">Cerrar</button></div></div>
+      <p class="sub" style="margin:0">Se actualiza sola cada pocos segundos con lo que el candidato/a va marcando y escribiendo.</p>
+      <div class="rep" id="live-body"></div>
+    </div>
     <div class="card">
       <h2>Banco de preguntas y claves</h2>
       <p class="sub">La opción correcta aparece en verde. Al candidato/a las opciones le salen en orden aleatorio.</p>
@@ -389,7 +394,7 @@ function updLink(){
 }
 function flashCfg(cls,t){const m=$("cfg-msg");m.className="msg "+cls;m.textContent=t;m.hidden=false}
 $("b-defaults").addEventListener("click",()=>{CFG=defCfg();renderEval();flashCfg("ok","Configuración restablecida: 10, 5 y 5 preguntas, supuesto al azar.")});
-$("b-exit").addEventListener("click",()=>{$("cfg-msg").hidden=true;EVK="";clearInterval(trkTimer);show("s-gate")});
+$("b-exit").addEventListener("click",()=>{$("cfg-msg").hidden=true;EVK="";clearInterval(trkTimer);if(typeof liveStop==="function")liveStop();show("s-gate")});
 $("b-copylink").addEventListener("click",()=>{
   const t=$("cfg-link").textContent;
   const fb=()=>{const r=document.createRange();r.selectNodeContents($("cfg-link"));const s=getSelection();s.removeAllRanges();s.addRange(r);flashCfg("warn","Código seleccionado: cópielo con Ctrl+C.")};
@@ -561,7 +566,7 @@ function spInfo(p){const all=UCS[p.uc].sps.map(s=>s.n),done=p.sps.slice().sort((
   const f=a=>a.length?a.map(n=>"Supuesto "+n).join(", "):"Ninguno";
   return {done:done.length?f(done):"No se realiza supuesto práctico",no:f(no)}}
 function valNote(){return hasVal()?"Cada ECP queda DEMOSTRADO con nota igual o superior a 5.":"Los supuestos prácticos los valora el evaluador/a. Cada ECP queda DEMOSTRADO con nota igual o superior a 5."}
-function reportHTML(){
+function reportHTML(bodyOnly){
   const head=`
 <div class="r-band"><div><div class="r-eb">Acreditación de competencias profesionales</div><h2>Informe de la prueba de evaluación</h2><div class="r-sub">Cualificación SEA029_2 · Vigilancia y seguridad privada</div></div>
   <div class="r-code">Código de la prueba<br><b>${esc(S.code)}</b></div></div>
@@ -601,7 +606,7 @@ ${S.parts.map(p=>{const s=spInfo(p);return `<tr><td><b>${p.uc}</b> · ${esc(UCS[
   ${hasVal()?`<h4 class="r-h">Valoración del supuesto práctico ${n}</h4>${valParas(valSpTxt(p,n))}`:""}`}).join("")}
   ${hasVal()&&!p.sps.length?`<h4 class="r-h">Valoración del supuesto práctico</h4><p class="r-val">${NOSP}</p>`:""}
 </section>`}).join("");
-  return head+body;
+  return bodyOnly?body:head+body;
 }
 function reportText(){
   let t=`INFORME DE LA PRUEBA DE EVALUACIÓN · SEA029_2\n\nApellidos y nombre: ${S.name}\nDNI/NIE/Pasaporte: ${S.dni}\nEmail: ${S.email||"No indicado"}\nLugar: ${S.place||"No indicado"}\nInicio: ${fmt(S.start)}  Entrega: ${fmt(S.end)}\nCódigo de la prueba: ${S.code}\nTiempo total: ${durTxt(S)}\n`+(S.evaluator?`Evaluador/a: ${S.evaluator}${S.evaluatorDni?" (DNI/NIE "+S.evaluatorDni+")":""}\n`:"");
@@ -736,10 +741,11 @@ function progressText(){if(!S)return"";const t=tally();return [t.tot?`Test ${t.a
 function post(body){if(!canNet)return Promise.reject(new Error("sin servidor"));
   return fetch(SERVER_URL,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(body)})}
 let hbTimer=null,lastHb="";
-function heartbeat(force){if(!S||S.done||!canNet)return;const pr=progressText();if(!force&&pr===lastHb&&hbTimer)return;lastHb=pr;
-  post({id:S.id,name:S.name,dni:S.dni,start:S.start,status:"en curso",progress:pr,sel:selOf()}).catch(()=>{})}
+function heartbeat(force){if(!S||S.done||!canNet)return;const pr=progressText(),live=liveOf(),sig=pr+JSON.stringify(live.parts);if(!force&&sig===lastHb&&hbTimer)return;lastHb=sig;
+  post({id:S.id,name:S.name,dni:S.dni,start:S.start,status:"en curso",progress:pr,sel:selOf(),live}).catch(()=>{})}
+function liveOf(){return {code:S.code,email:S.email,place:S.place,parts:S.parts.map(p=>({uc:p.uc,qids:p.qids,order:p.order,ans:p.ans,sps:p.sps,texts:p.texts}))}}
 function selOf(){return {code:S.code,parts:S.parts.map(p=>({uc:p.uc,qids:p.qids,order:p.order,sps:p.sps}))}}
-function startHeartbeat(){if(hbTimer||!canNet)return;heartbeat(true);hbTimer=setInterval(()=>heartbeat(true),30000)}
+function startHeartbeat(){if(hbTimer||!canNet)return;heartbeat(true);hbTimer=setInterval(()=>heartbeat(true),15000)}
 let hbDeb=null;function hbSoon(){clearTimeout(hbDeb);hbDeb=setTimeout(()=>heartbeat(false),3000)}
 async function ack(){try{const r=await fetch(SERVER_URL+"?action=ack&id="+encodeURIComponent(S.id));const j=await r.json();return j&&j.status==="entregada"}catch(e){return false}}
 function setSendMsg(){const m=$("send-msg");
@@ -780,7 +786,21 @@ function renderTrack(){
   $("trk-rows").innerHTML=trkItems.map((x,i)=>{const done=x.status==="entregada",live=!done&&Date.now()-x.updated<90000;
     const st=done?`<span class="pill ok">Entregada</span>`:(live?`<span class="pill na">En curso · conectado</span>`:`<span class="pill bad">En curso · sin señal</span>`);
     return `<tr><td><b>${esc(x.name)}</b><br><span class="who">${esc(x.dni)}</span></td><td>${st}</td><td class="who">${esc(x.progress||"")}</td><td class="who">${x.start?(done&&x.end?durMs(x.end-x.start):durMs(Date.now()-x.start)+" (en curso)"):"-"}</td><td class="who">${ago(x.updated)}</td>
-      <td><div class="btns">${done?`<button type="button" data-get="${i}" data-fmt="pdf">PDF</button><button type="button" class="alt" data-get="${i}" data-fmt="zip">PDF (ECP)</button>`:""}${x.sel&&x.sel.parts?`<button type="button" class="ghost" data-paper="${i}">Prueba (.docx)</button><button type="button" class="ghost" data-pkey="${i}">Corrección (.docx)</button>`:""}<button type="button" class="ghost danger" data-del="${i}">Eliminar</button></div></td></tr>`}).join("")}
+      <td><div class="btns">${done?`<button type="button" data-get="${i}" data-fmt="pdf">PDF</button><button type="button" class="alt" data-get="${i}" data-fmt="zip">PDF (ECP)</button>`:""}${x.sel&&x.sel.parts?`<button type="button" class="ghost" data-paper="${i}">Prueba (.docx)</button><button type="button" class="ghost" data-pkey="${i}">Corrección (.docx)</button>`:""}<button type="button" class="ghost" data-live="${i}">Ver prueba</button><button type="button" class="ghost danger" data-del="${i}">Eliminar</button></div></td></tr>`}).join("")}
+let LIVE=null,liveTimer=null;
+function liveStop(){LIVE=null;clearInterval(liveTimer);liveTimer=null;$("live-card").hidden=true}
+async function liveLoad(){if(!LIVE)return;const id=LIVE.id;
+  try{const r=await fetch(SERVER_URL+"?action=get&id="+encodeURIComponent(id)+"&key="+encodeURIComponent(EVK));const j=await r.json();if(!LIVE||LIVE.id!==id)return;
+    const src=j.payload||j.live;if(!j.ok||!src||!src.parts){$("live-state").textContent="Sin datos todavía";$("live-body").innerHTML=`<p class="who">El candidato/a aún no ha enviado respuestas. Se mostrarán en cuanto conteste.</p>`;return}
+    normPl(src);const keep=S;S=Object.assign({},src,{name:LIVE.name,dni:LIVE.dni,start:LIVE.start});
+    try{const sc=window.scrollY;$("live-body").innerHTML=reportHTML(true);window.scrollTo(0,sc)}finally{S=keep}
+    const done=j.status==="entregada";$("live-state").textContent=(done?"Entregada · ":"En curso · ")+"actualizado "+new Date().toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+    if(done){clearInterval(liveTimer);liveTimer=null}}
+  catch(e){$("live-state").textContent="Sin conexión, reintentando…"}}
+$("b-live-close").addEventListener("click",liveStop);
+$("trk-rows").addEventListener("click",e=>{const b=e.target.closest("button[data-live]");if(!b)return;const x=trkItems[+b.dataset.live];if(!x)return;
+  LIVE={id:x.id,name:x.name,dni:x.dni,start:x.start};$("live-h").textContent="Prueba en directo · "+(x.name||"(sin nombre)");$("live-state").textContent="Cargando…";$("live-body").innerHTML="";
+  $("live-card").hidden=false;$("live-card").scrollIntoView({behavior:"smooth",block:"start"});clearInterval(liveTimer);liveLoad();liveTimer=setInterval(()=>{if(!$("s-eval").hidden&&LIVE)liveLoad()},5000)});
 $("trk-rows").addEventListener("click",e=>{const b=e.target.closest("button[data-paper],button[data-pkey]");if(!b)return;
   const x=trkItems[+(b.dataset.paper??b.dataset.pkey)];if(!x||!x.sel)return;
   if(b.dataset.paper!==undefined){directSave(paperDoc(candPaper(x)),candFile(x,"Prueba"));trkMsg("ok",`Descargada la prueba de ${x.name} sin respuestas.`)}

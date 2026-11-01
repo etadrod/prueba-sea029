@@ -117,6 +117,8 @@ async function recibir(req, res) {
         end: Number(d.end) || (previo ? previo.end : null) || null,
         payload: d.payload || (previo ? previo.payload : null),
         // Selección de preguntas, supuestos y orden de opciones (sin respuestas) para la prueba en papel.
+        // Estado en directo de la prueba (respuestas actuales) para que el evaluador la siga mientras se realiza.
+        live: (d.live && JSON.stringify(d.live).length < 2e6) ? d.live : (previo ? previo.live || null : null),
         sel: (d.sel && JSON.stringify(d.sel).length < 50000) ? d.sel : (previo ? previo.sel || null : null),
       };
       await guardar(reg);
@@ -157,7 +159,7 @@ const servidor = http.createServer(async (req, res) => {
       }
       if (a === 'get') {
         const r = await leer(u.searchParams.get('id') || '');
-        return json(res, { ok: !!r, payload: r ? r.payload : null });
+        return json(res, { ok: !!r, payload: r ? r.payload : null, live: r ? r.live || null : null, status: r ? r.status : null, updated: r ? r.updated : null });
       }
       return json(res, { ok: false, error: 'accion' }, 400);
     } catch (e) {
